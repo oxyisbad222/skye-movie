@@ -6,70 +6,74 @@
     <title>SkyeMovie™</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Honk&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <div id="access-gate-section" class="active-section">
-        <h1 class="logo-title honk-font">SkyeMovie™</h1>
-        <p>Enter your 6-digit access code:</p>
-        <input type="text" id="access-code-input" maxlength="6">
-        <button id="submit-access-code">Enter</button>
-        <p id="access-error" class="error-message"></p>
+    <div id="access-gate-section" class="active-section fullscreen-section">
+        <div class="form-container">
+            <h1 class="logo-title cherry-bomb-one-font">SkyeMovie™</h1>
+            <p>Enter your 6-digit access code:</p>
+            <input type="text" id="access-code-input" maxlength="6" inputmode="numeric">
+            <button id="submit-access-code">Enter</button>
+            <p id="access-error" class="error-message"></p>
+        </div>
     </div>
 
-    <div id="auth-section" class="hidden-section">
-        <h1 class="logo-title honk-font">SkyeMovie™</h1>
-        <div id="login-form">
-            <h2>Login</h2>
-            <input type="email" id="login-email" placeholder="Email">
-            <input type="password" id="login-password" placeholder="Password">
-            <button id="login-button">Login</button>
-            <p class="auth-toggle">Don't have an account? <a href="#" id="show-register">Register here</a></p>
-            <p id="login-error" class="error-message"></p>
-        </div>
-        <div id="register-form" style="display: none;">
-            <h2>Register</h2>
-            <input type="email" id="register-email" placeholder="Email">
-            <input type="password" id="register-password" placeholder="Password">
-            <button id="register-button">Register</button>
-            <p class="auth-toggle">Already have an account? <a href="#" id="show-login">Login here</a></p>
-            <p id="register-error" class="error-message"></p>
+    <div id="auth-section" class="hidden-section fullscreen-section">
+        <div class="form-container">
+            <h1 class="logo-title cherry-bomb-one-font">SkyeMovie™</h1>
+            <div id="login-form">
+                <h2>Login</h2>
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-password" placeholder="Password">
+                <button id="login-button">Login</button>
+                <p class="auth-toggle">Don't have an account? <a href="#" id="show-register">Register here</a></p>
+                <p id="login-error" class="error-message"></p>
+            </div>
+            <div id="register-form" style="display: none;">
+                <h2>Register</h2>
+                <input type="email" id="register-email" placeholder="Email">
+                <input type="password" id="register-password" placeholder="Password">
+                <button id="register-button">Register</button>
+                <p class="auth-toggle">Already have an account? <a href="#" id="show-login">Login here</a></p>
+                <p id="register-error" class="error-message"></p>
+            </div>
         </div>
     </div>
 
     <div id="main-app-section" class="hidden-section">
         <header>
-            <h1 class="logo-title-small honk-font">SkyeMovie™</h1>
+            <h1 class="logo-title-small cherry-bomb-one-font">SkyeMovie™</h1>
+            <nav>
+                <button id="nav-discover" class="nav-button">Discover</button>
+                <button id="nav-search" class="nav-button">Search</button>
+                <button id="nav-favorites" class="nav-button">Favorites</button>
+            </nav>
             <div class="user-info">
                 <span id="user-email-display"></span>
                 <button id="logout-button">Logout</button>
             </div>
-            <nav>
-                <button id="nav-discover">Discover</button>
-                <button id="nav-search">Search</button>
-                <button id="nav-favorites">My Favorites</button>
-            </nav>
         </header>
 
         <main>
             <div id="discover-view" class="view active-view">
-                <h2>Discover</h2>
-                <div id="discover-grid" class="media-grid">
-                    </div>
-            </div>
+                </div>
 
             <div id="search-view" class="view">
-                <h2>Search</h2>
                 <div class="search-bar-container">
                     <input type="text" id="search-input" placeholder="Search for movies or TV shows...">
-                    <button id="search-button">Search</button>
+                    <button id="search-button-main">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    </button>
                 </div>
-                <div id="search-results-grid" class="media-grid">
-                    </div>
-                 <div id="autocomplete-suggestions" class="autocomplete-suggestions-list">
-                    </div>
+                 <div id="autocomplete-suggestions" class="autocomplete-suggestions-list"></div>
+                <div id="search-results-container">
+                    <p id="search-message" class="search-status-message">Type to search for movies and TV shows.</p>
+                    <div id="search-results-grid" class="media-grid">
+                        </div>
+                </div>
             </div>
 
             <div id="favorites-view" class="view">
@@ -79,23 +83,27 @@
             </div>
 
             <div id="detail-view" class="view">
-                <button id="back-to-list-button">&larr; Back</button>
+                <button id="back-to-list-button" class="detail-back-button">&larr; Back</button>
                 <div id="media-detail-content">
                     </div>
             </div>
 
             <div id="player-view" class="view">
-                <button id="close-player-button">&larr; Back to Details</button>
+                <button id="close-player-button" class="detail-back-button">&larr; Back to Details</button>
                 <h3 id="player-title"></h3>
                 <div id="mappletv-player-container">
                     </div>
             </div>
         </main>
+        <footer>
+            <p>&copy; <span id="current-year"></span> SkyeMovie™. All rights reserved. Content provided by TMDB & Watchmode. Cherry Bomb One font by Satsuyako.</p>
+        </footer>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
     <script src="script.js"></script>
 </body>
 </html>
