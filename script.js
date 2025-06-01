@@ -155,7 +155,11 @@ const ApiService = {
         const url = `${TMDB_BASE_URL}/${endpoint}?${urlParams}`;
         const cacheKey = `tmdb_${endpoint}_${JSON.stringify(params)}`;
         const cached = ApiCache.get(cacheKey);
-        if (cached) return cached;
+        if (cached) {
+            // console.log(`[CACHE HIT] TMDB: ${endpoint}`, params);
+            return cached;
+        }
+        // console.log(`[API CALL] TMDB: ${url}`);
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -177,8 +181,12 @@ const ApiService = {
         const cacheKey = `watchmode_${endpoint}_${JSON.stringify(params)}`;
         if (useCache) { 
             const cached = ApiCache.get(cacheKey); 
-            if (cached) return cached; 
+            if (cached) {
+                // console.log(`[CACHE HIT] Watchmode: ${endpoint}`, params);
+                return cached;
+            }
         }
+        // console.log(`[API CALL] Watchmode: ${url}`);
         try {
             const response = await fetch(url);
             ApiCache.updateRateLimits(response.headers);
@@ -927,24 +935,23 @@ const AppLogic = {
 
         try {
             let results = [];
-            let fetchParams = { page: 1 }; // Base params
+            let fetchParams = { page: 1 }; 
             let endpoint = '';
-            let currentSortBy = sortBy; // Use a mutable variable for sortBy
+            let currentSortBy = sortBy; 
 
-            if (query) { // Keyword search
+            if (query) {
                 fetchParams.query = query;
-                // Note: TMDB's /search endpoints don't robustly support all sort_by options like /discover does.
-                // Relevance is default. For simplicity, we might not pass sortBy to /search or only pass compatible ones.
-                // For now, we'll pass it and TMDB will use it if compatible or ignore it.
-                if (sortBy) fetchParams.sort_by = sortBy; // Add if a sort is selected
+                if (currentSortBy) fetchParams.sort_by = currentSortBy; // Pass sort if selected, TMDB will handle if applicable to search
 
                 if (type === 'movie') endpoint = 'search/movie';
                 else if (type === 'tv') endpoint = 'search/tv';
                 else endpoint = 'search/multi';
 
+                console.log(`Keyword Search: endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
                 const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-                results = data.results
-                    .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) // Filter out persons from multi-search
+                console.log("Keyword Search Response Data:", data);
+                results = (data.results || [])
+                    .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) 
                     .map(item => ({ ...item, id: String(item.id)}));
             
             } else { // No query, using filters for discovery (TMDB Discover)
@@ -960,9 +967,14 @@ const AppLogic = {
                     DOMElements.searchMessage.textContent = 'Please select a specific type (Movies or TV Shows) to discover with filters.';
                     return; 
                 }
-                fetchParams.sort_by = currentSortBy; // Set the (potentially adjusted) sort_by
+                fetchParams.sort_by = currentSortBy;
+                console.log(`Discovering: type=${type}, endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
+
                 const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-                results = data.results.map(item => ({ ...item, media_type: type, id: String(item.id) }));
+                console.log("Discover API Response Data:", data);
+
+                results = (data.results || []).map(item => ({ ...item, media_type: type, id: String(item.id) }));
+                console.log("Mapped Discover Results Count:", results.length);
             }
             
             if (results.length > 0) {
@@ -1022,6 +1034,10 @@ const AppLogic = {
             if (seasonSelect && episodeSelect && seasonSelect.value && episodeSelect.value) {
                 season = seasonSelect.value;
                 episode = episodeSelect.value;
+                if (!season || !episode) {
+                    alert("Please ensure a valid season and episode are selected.");
+                    return;
+                }
             } else if (currentOpenDetail.seasons && currentOpenDetail.seasons.some(s => s.season_number === 1 && s.episode_count > 0)) {
                 season = '1'; episode = '1';
             } else {
