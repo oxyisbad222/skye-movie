@@ -9,10 +9,9 @@ const TMDB_DETAIL_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w780'; // For det
 const WATCHMODE_API_KEY = 'GnIdrvUyNWlSVmLnZcuxdSCB4jSy18icYwMEojuP';
 const WATCHMODE_BASE_URL = 'https://api.watchmode.com/v1';
 
-// This will be fetched from /api/get-config
 let CONFIG_SKYE_MOVIE_ACCESS_CODE = null;
 
-const SITE_MAIN_THEME_COLOR = '181818'; // Dark theme for player (hex without #)
+// const SITE_MAIN_THEME_COLOR = '181818'; // Not used by new Mappletv URL structure
 
 const firebaseConfig = {
   apiKey: "AIzaSyCfzT7R2S4zezUeH7BayyQtKSTZ0fDfMGw",
@@ -41,8 +40,8 @@ try {
 // --- State Variables ---
 let currentUser = null;
 let currentWatchmodeRateLimits = {};
-let lastActiveListView = 'discover-view'; // To track which main list view was active for back button
-let currentOpenDetail = null; // Store details of the item in detail-view for player/back navigation
+let lastActiveListView = 'discover-view';
+let currentOpenDetail = null;
 let userFavorites = new Set();
 
 // --- DOM Elements ---
@@ -75,7 +74,7 @@ const DOMElements = {
     navFavorites: document.getElementById('nav-favorites'),
     navButtons: [],
 
-    discoverView: document.getElementById('discover-view'), // Container for all discover sections
+    discoverView: document.getElementById('discover-view'),
 
     searchView: document.getElementById('search-view'),
     searchInput: document.getElementById('search-input'),
@@ -103,7 +102,7 @@ DOMElements.navButtons = [DOMElements.navDiscover, DOMElements.navSearch, DOMEle
 // --- API Cache ---
 const ApiCache = {
     CACHE_PREFIX: 'skyeMovieCache_v2_',
-    DEFAULT_TTL: 3600 * 1000 * 3, // 3 hours
+    DEFAULT_TTL: 3600 * 1000 * 3,
 
     get: (key) => {
         const itemStr = localStorage.getItem(ApiCache.CACHE_PREFIX + key);
@@ -139,7 +138,6 @@ const ApiCache = {
             quotaUsed: headers.get('X-Account-Quota-Used'),
             timestamp: new Date().toLocaleTimeString()
         };
-        // console.log('Watchmode Rate Limits Updated:', currentWatchmodeRateLimits);
         if (currentWatchmodeRateLimits.remaining && parseInt(currentWatchmodeRateLimits.remaining) < 10) {
             console.warn("Watchmode API rate limit remaining is low!");
         }
@@ -186,7 +184,7 @@ const ApiService = {
             ApiCache.updateRateLimits(response.headers);
             if (!response.ok) {
                 let errorData = { message: response.statusText };
-                try { errorData = await response.json(); } catch (e) { /* ignore if error response not json */ }
+                try { errorData = await response.json(); } catch (e) { /* ignore */ }
                 console.error(`Watchmode API Error (${response.status}) for ${url}:`, errorData);
                 throw new Error(`Watchmode API Error (${response.status}): ${errorData.detail || errorData.message || response.statusText}`);
             }
@@ -199,22 +197,29 @@ const ApiService = {
         }
     },
 
-    getMappletvPlayerUrl: (tmdbId, title, season, episode) => {
-        let playerUrl = `https://mappletv.uk/player/${tmdbId}`;
-        const playerParams = new URLSearchParams();
-        if (season) playerParams.append('season', season);
-        if (episode) playerParams.append('episode', episode);
-        
-        playerParams.append('title', encodeURIComponent(title));
-        playerParams.append('poster', '1');
-        playerParams.append('autoPlay', '1');
-        playerParams.append('theme', SITE_MAIN_THEME_COLOR);
-        playerParams.append('nextButton', '1');
-        playerParams.append('autoNext', '1');
+    getMappletvPlayerUrl: (mediaType, tmdbId, season, episode) => {
+        // New URL structure:
+        // TV: https://mappletv.uk/watch/tv/{tmdb_id}-{season}-{episode}
+        // Movie: https://mappletv.uk/watch/movie/{tmdb_id}
+        // The player itself might handle autoplay and other params via its own internal logic or settings.
+        // The previously provided Mappletv.uk API params (title, poster, autoPlay, theme, etc.)
+        // were for a `/player/` endpoint. The `/watch/` endpoint might not support these URL params.
+        // We will construct the base URL as per the new format.
 
-        const queryString = playerParams.toString();
-        if (queryString) playerUrl += `?${queryString}`;
-        return playerUrl;
+        if (mediaType === 'tv') {
+            if (!season || !episode) {
+                console.warn("Season and episode are required for TV show playback on Mappletv.uk");
+                // Default to S1E1 if not provided, or handle error
+                season = season || 1;
+                episode = episode || 1;
+            }
+            return `https://mappletv.uk/watch/tv/${tmdbId}-${season}-${episode}`;
+        } else if (mediaType === 'movie') {
+            return `https://mappletv.uk/watch/movie/${tmdbId}`;
+        } else {
+            console.error("Unsupported media type for Mappletv.uk playback:", mediaType);
+            return null; // Or a fallback URL / error page
+        }
     }
 };
 
@@ -247,6 +252,7 @@ const UIService = {
     },
 
     createMediaCard: (mediaItem, isFavoriteOverride = null) => {
+        // ... (This function remains largely the same as the previous version)
         const isMovie = mediaItem.media_type === 'movie' || (mediaItem.title && mediaItem.release_date);
         const isTv = mediaItem.media_type === 'tv' || (mediaItem.name && mediaItem.first_air_date);
 
@@ -257,19 +263,17 @@ const UIService = {
         let year = mediaItem.release_date ? mediaItem.release_date.substring(0,4) : (mediaItem.first_air_date ? mediaItem.first_air_date.substring(0,4) : '');
         
         let type = 'unknown';
-        if (mediaItem.tmdb_id) id = String(mediaItem.tmdb_id); // Prefer tmdb_id if from Watchmode
+        if (mediaItem.tmdb_id) id = String(mediaItem.tmdb_id);
         
-        // Determine type more reliably
-        if(mediaItem.media_type) { // TMDB often provides this
+        if(mediaItem.media_type) {
             type = mediaItem.media_type;
-        } else if (mediaItem.type) { // Watchmode provides 'type'
+        } else if (mediaItem.type) {
              type = (mediaItem.type === 'movie' || mediaItem.type === 'short_film') ? 'movie' : 
                     (mediaItem.type === 'tv_series' || mediaItem.type === 'tv_miniseries' || mediaItem.type === 'tv_special') ? 'tv' : 'unknown';
-        } else { // Infer if possible
+        } else {
             if (isMovie) type = 'movie';
             if (isTv) type = 'tv';
         }
-
 
         const posterUrl = posterPath ? `${TMDB_IMAGE_BASE_URL}${posterPath}` : 'https://via.placeholder.com/180x270.png?text=No+Image';
         const isFavorited = isFavoriteOverride !== null ? isFavoriteOverride : userFavorites.has(id);
@@ -308,20 +312,21 @@ const UIService = {
         return card;
     },
 
-    renderMediaRow: (containerElement, items) => {
-        containerElement.innerHTML = '';
+    renderMediaRow: (rowContainerElement, items) => { // rowContainerElement is now the .discover-media-row
+        rowContainerElement.innerHTML = '';
         if (!items || items.length === 0) {
-            containerElement.innerHTML = '<p class="empty-row-message">No items found for this category.</p>';
+            rowContainerElement.innerHTML = '<p class="empty-row-message">No items found for this category.</p>';
             return;
         }
         items.forEach(item => {
           if ((item.poster_path || item.image_url) && (item.title || item.name)) {
-            containerElement.appendChild(UIService.createMediaCard(item));
+            rowContainerElement.appendChild(UIService.createMediaCard(item));
           }
         });
     },
 
     renderGrid: (gridElement, items, messageElement = null, emptyMessage = "No results found.") => {
+        // ... (This function remains the same)
         gridElement.innerHTML = '';
         if (messageElement) messageElement.textContent = '';
 
@@ -338,6 +343,7 @@ const UIService = {
     },
     
     renderAutocompleteSuggestions: (suggestions) => {
+        // ... (This function remains the same)
         DOMElements.autocompleteSuggestions.innerHTML = '';
         if (!suggestions || suggestions.length === 0) {
             DOMElements.autocompleteSuggestions.style.display = 'none';
@@ -345,7 +351,7 @@ const UIService = {
         }
         suggestions.slice(0, 5).forEach(item => {
             const div = document.createElement('div');
-            div.textContent = `${item.name} (${item.year || 'N/A'})`; // item.year from Watchmode autocomplete
+            div.textContent = `${item.name} (${item.year || 'N/A'})`;
             div.addEventListener('click', () => {
                 DOMElements.searchInput.value = item.name;
                 UIService.clearAutocomplete();
@@ -357,6 +363,7 @@ const UIService = {
     },
 
     renderMediaDetail: async (mediaId, mediaType) => {
+        // ... (This function remains largely the same, check for type consistency)
         DOMElements.mediaDetailContent.innerHTML = '<p class="loading-message">Loading details...</p>';
         UIService.showView('detail-view');
         currentOpenDetail = null;
@@ -371,22 +378,19 @@ const UIService = {
             } else if (mediaType === 'tv') {
                 details = await ApiService.fetchTMDB(`tv/${tmdbIdForPlayer}`, { append_to_response: 'credits,videos,content_ratings,external_ids' });
             } else {
-                console.warn("Attempting to fetch details for unknown or non-standard media type:", mediaType, "ID:", mediaId);
-                // Try to guess based on ID pattern or a generic find (TMDB has /find endpoint but needs external ID)
-                // For now, throw error if type isn't movie/tv
                 throw new Error(`Unsupported media type "${mediaType}" for detail fetch.`);
             }
             
             currentOpenDetail = { ...details, id: tmdbIdForPlayer, type: mediaType };
             
             try {
-                const watchmodeTmdbType = mediaType === 'movie' ? 'movie' : 'tv'; // Watchmode uses 'tv' for series/miniseries etc.
+                const watchmodeTmdbType = mediaType === 'movie' ? 'movie' : 'tv';
                 const watchmodeTitleLookupId = `tmdb-${watchmodeTmdbType}-${tmdbIdForPlayer}`;
                 const sourceData = await ApiService.fetchWatchmode(`title/${watchmodeTitleLookupId}/sources`);
                 if (sourceData && Array.isArray(sourceData)) {
                      sources = sourceData
                         .filter(s => s.type === 'sub' || s.type === 'rent' || s.type === 'buy')
-                        .map(s => ({name: s.name, type: s.type.replace('_', ' '), web_url: s.web_url })); // make type more readable
+                        .map(s => ({name: s.name, type: s.type.replace('_', ' '), web_url: s.web_url }));
                 }
             } catch (e) { console.warn("Could not fetch sources from Watchmode:", e.message); }
 
@@ -400,7 +404,7 @@ const UIService = {
 
             let seasonsHtml = '';
             if (mediaType === 'tv' && details.seasons) {
-                const displaySeasons = details.seasons.filter(s => s.episode_count > 0 && (s.season_number > 0 || details.seasons.length === 1) ); // Exclude season 0 unless it's the only one with episodes
+                const displaySeasons = details.seasons.filter(s => s.episode_count > 0 && (s.season_number > 0 || details.seasons.length === 1) );
                 if (displaySeasons.length > 0) {
                     seasonsHtml = `
                         <div id="season-episode-selector">
@@ -456,9 +460,15 @@ const UIService = {
         }
     },
 
-    renderPlayer: (tmdbId, title, season, episode) => {
-        const playerUrl = ApiService.getMappletvPlayerUrl(tmdbId, title, season, episode);
-        DOMElements.playerTitle.textContent = season && episode ? `${title} - S${season} E${episode}` : title;
+    renderPlayer: (mediaType, tmdbId, title, season, episode) => {
+        const playerUrl = ApiService.getMappletvPlayerUrl(mediaType, tmdbId, season, episode);
+        if (!playerUrl) {
+            DOMElements.mappletvPlayerContainer.innerHTML = `<p class="error-message">Could not generate player URL for this content.</p>`;
+            UIService.showView('player-view'); // Show player view even with error
+            DOMElements.playerTitle.textContent = "Playback Error";
+            return;
+        }
+        DOMElements.playerTitle.textContent = (mediaType === 'tv' && season && episode) ? `${title} - S${season} E${episode}` : title;
         DOMElements.mappletvPlayerContainer.innerHTML = `<iframe src="${playerUrl}" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
         UIService.showView('player-view');
     },
@@ -470,8 +480,9 @@ const UIService = {
 
 // --- Auth Service ---
 const AuthService = {
+    // ... (This service remains the same as the previous version)
     fetchAndSetAccessCode: async () => {
-        DOMElements.submitAccessCodeButton.disabled = true; // Disable while fetching
+        DOMElements.submitAccessCodeButton.disabled = true;
         DOMElements.accessError.textContent = 'Loading configuration...';
         try {
             const response = await fetch('/api/get-config');
@@ -490,21 +501,21 @@ const AuthService = {
         } catch (error) {
             console.error("Error fetching access code config:", error.message);
             DOMElements.accessError.textContent = `Error: ${error.message}. Site may not function.`;
-            DOMElements.submitAccessCodeButton.disabled = true; // Keep disabled on critical error
+            DOMElements.submitAccessCodeButton.disabled = true;
             return false;
         }
     },
     handleAccessCode: () => {
         if (!CONFIG_SKYE_MOVIE_ACCESS_CODE) {
             DOMElements.accessError.textContent = 'Access code configuration is still loading or failed. Please wait.';
-            AuthService.fetchAndSetAccessCode(); // Attempt to re-fetch
+            AuthService.fetchAndSetAccessCode();
             return;
         }
         const code = DOMElements.accessCodeInput.value.trim();
         if (code === CONFIG_SKYE_MOVIE_ACCESS_CODE) {
             DOMElements.accessError.textContent = '';
             localStorage.setItem('skyeMovieAccessGranted', 'true');
-            AuthService.observeAuthState(); // Re-check auth state now that access is granted
+            AuthService.observeAuthState();
         } else {
             DOMElements.accessError.textContent = 'Invalid access code.';
             localStorage.removeItem('skyeMovieAccessGranted');
@@ -533,7 +544,7 @@ const AuthService = {
     handleLogout: async () => {
         try {
             await fbAuth.signOut();
-             localStorage.removeItem('skyeMovieAccessGranted'); // Also revoke access grant on logout
+             localStorage.removeItem('skyeMovieAccessGranted');
         } catch (error) {
             console.error("Logout error:", error);
         }
@@ -548,9 +559,9 @@ const AuthService = {
                 await FavoritesService.loadFavorites();
                 UIService.showSection(DOMElements.mainAppSection);
                 if (!lastActiveListView || lastActiveListView === 'discover-view' || DOMElements.discoverView.innerHTML === '') {
-                     AppLogic.showDiscover(); // Default to discover if no specific last view or discover is empty
+                     AppLogic.showDiscover();
                 } else {
-                    UIService.showView(lastActiveListView); // Restore last known list view
+                    UIService.showView(lastActiveListView);
                 }
             } else {
                 currentUser = null;
@@ -559,15 +570,15 @@ const AuthService = {
                 
                 if (!accessGranted && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) {
                      UIService.showSection(DOMElements.accessGateSection);
-                     DOMElements.accessError.textContent = ''; // Clear previous errors
-                     DOMElements.submitAccessCodeButton.disabled = false; // Ensure enabled
+                     DOMElements.accessError.textContent = '';
+                     DOMElements.submitAccessCodeButton.disabled = false;
                 } else if (accessGranted && !user && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) {
                     UIService.showSection(DOMElements.authSection);
-                } else if (CONFIG_SKYE_MOVIE_ACCESS_CODE === null) { // Config not yet loaded
+                } else if (CONFIG_SKYE_MOVIE_ACCESS_CODE === null) {
                     UIService.showSection(DOMElements.accessGateSection);
                     DOMElements.accessError.textContent = 'Loading site configuration...';
                     DOMElements.submitAccessCodeButton.disabled = true;
-                } else { // Default to access gate if other conditions not met (e.g. logout)
+                } else { 
                     UIService.showSection(DOMElements.accessGateSection);
                     DOMElements.accessError.textContent = '';
                     DOMElements.submitAccessCodeButton.disabled = false;
@@ -583,6 +594,7 @@ const AuthService = {
 
 // --- Favorites Service ---
 const FavoritesService = {
+    // ... (This service remains the same as the previous version)
     loadFavorites: async () => {
         if (!currentUser) return;
         userFavorites.clear();
@@ -593,7 +605,6 @@ const FavoritesService = {
             if (document.getElementById('favorites-view').classList.contains('active-view')) {
                 AppLogic.showFavorites();
             }
-            // Refresh fav buttons on any currently displayed media cards (e.g. on Discover if loaded before favs)
             document.querySelectorAll('.media-card .add-to-favorites').forEach(btn => {
                 const cardId = btn.dataset.id;
                 if (userFavorites.has(cardId)) {
@@ -640,7 +651,7 @@ const FavoritesService = {
         const favoriteItemsData = [];
         try {
             const snapshot = await fbFirestore.collection('users').doc(currentUser.uid).collection('favorites').orderBy('addedAt', 'desc').get();
-            snapshot.forEach(doc => favoriteItemsData.push({ id: doc.id, ...doc.data() })); // doc.id is the TMDB_ID
+            snapshot.forEach(doc => favoriteItemsData.push({ id: doc.id, ...doc.data() }));
         } catch (error) { console.error("Error fetching favorite details:", error.message); }
         return favoriteItemsData;
     }
@@ -650,19 +661,14 @@ const FavoritesService = {
 // --- App Logic & Event Handlers ---
 const AppLogic = {
     init: async () => {
+        // ... (Init logic remains largely the same for event listeners)
         DOMElements.currentYearSpan.textContent = new Date().getFullYear();
         
-        // Fetch config first. observeAuthState will be called after success or handle UI for failure.
         const configLoaded = await AuthService.fetchAndSetAccessCode(); 
-        AuthService.observeAuthState(); // Crucial: Call observeAuthState regardless of config load to handle all UI states
+        AuthService.observeAuthState();
 
-        if (!configLoaded) {
-            // If config failed to load, observeAuthState would have put UI in access gate with error.
-            // No further app-specific init beyond basic auth observation should happen here.
-            return;
-        }
+        if (!configLoaded) { return; }
         
-        // Event Listeners
         DOMElements.submitAccessCodeButton.addEventListener('click', AuthService.handleAccessCode);
         DOMElements.accessCodeInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') AuthService.handleAccessCode(); });
         
@@ -679,7 +685,7 @@ const AppLogic = {
 
         DOMElements.backToListButton.addEventListener('click', () => UIService.showView(lastActiveListView || 'discover-view'));
         DOMElements.closePlayerButton.addEventListener('click', () => {
-            DOMElements.mappletvPlayerContainer.innerHTML = '';
+            DOMElements.mappletvPlayerContainer.innerHTML = ''; // Important to stop video
             UIService.showView('detail-view');
         });
         
@@ -698,7 +704,9 @@ const AppLogic = {
             UIService.clearAutocomplete(); AppLogic.performSearch(DOMElements.searchInput.value.trim());
         });
         document.addEventListener('click', (event) => {
-            if (!DOMElements.searchInput.parentElement.contains(event.target) && !DOMElements.autocompleteSuggestions.contains(event.target)) {
+            if (DOMElements.searchView.contains(event.target) && 
+                !DOMElements.searchInput.parentElement.contains(event.target) && 
+                !DOMElements.autocompleteSuggestions.contains(event.target)) {
                 UIService.clearAutocomplete();
             }
         });
@@ -719,28 +727,89 @@ const AppLogic = {
         for (const section of AppLogic.discoverSectionsConfig) {
             const sectionDiv = document.createElement('div');
             sectionDiv.className = 'discover-section';
+            
             const titleEl = document.createElement('h2');
             titleEl.className = 'discover-section-title';
             titleEl.textContent = section.title;
             sectionDiv.appendChild(titleEl);
+
+            // Create a wrapper for the row and its arrows
+            const rowWrapper = document.createElement('div');
+            rowWrapper.className = 'discover-media-row-wrapper';
+
             const rowDiv = document.createElement('div');
             rowDiv.className = 'discover-media-row';
             rowDiv.innerHTML = '<p class="loading-message">Loading...</p>';
-            sectionDiv.appendChild(rowDiv);
+            rowWrapper.appendChild(rowDiv); // Add row to wrapper
+
+            // Add navigation arrows
+            const prevArrow = document.createElement('button');
+            prevArrow.className = 'discover-arrow prev-arrow';
+            prevArrow.innerHTML = '&#10094;'; // Left arrow
+            prevArrow.title = "Previous";
+            prevArrow.classList.add('hidden-arrow'); // Initially hidden
+
+            const nextArrow = document.createElement('button');
+            nextArrow.className = 'discover-arrow next-arrow';
+            nextArrow.innerHTML = '&#10095;'; // Right arrow
+            nextArrow.title = "Next";
+            nextArrow.classList.add('hidden-arrow'); // Initially hidden
+
+            rowWrapper.appendChild(prevArrow);
+            rowWrapper.appendChild(nextArrow);
+            
+            sectionDiv.appendChild(rowWrapper); // Add wrapper to section
             DOMElements.discoverView.appendChild(sectionDiv);
+
+            // Arrow functionality
+            const scrollAmount = () => rowDiv.clientWidth * 0.8; // Scroll 80% of visible width
+
+            prevArrow.addEventListener('click', () => {
+                rowDiv.scrollLeft -= scrollAmount();
+            });
+            nextArrow.addEventListener('click', () => {
+                rowDiv.scrollLeft += scrollAmount();
+            });
+
+            const updateArrowVisibility = () => {
+                // Using a small tolerance for scroll position checks
+                const tolerance = 5; 
+                const atStart = rowDiv.scrollLeft <= tolerance;
+                const atEnd = rowDiv.scrollLeft + rowDiv.clientWidth >= rowDiv.scrollWidth - tolerance;
+
+                prevArrow.classList.toggle('hidden-arrow', atStart);
+                nextArrow.classList.toggle('hidden-arrow', atEnd);
+
+                // If no scrolling is possible (all items fit), hide both
+                if (rowDiv.scrollWidth <= rowDiv.clientWidth) {
+                    prevArrow.classList.add('hidden-arrow');
+                    nextArrow.classList.add('hidden-arrow');
+                }
+            };
+            
+            // Use ResizeObserver to update arrows if container size changes
+            // and on initial load after items are rendered.
+            const observer = new ResizeObserver(updateArrowVisibility);
+            observer.observe(rowDiv);
+            rowDiv.addEventListener('scroll', updateArrowVisibility, { passive: true });
+
 
             try {
                 const data = await ApiService.fetchTMDB(section.endpoint, { page: 1 });
                 const itemsWithMediaType = data.results.map(item => ({ ...item, media_type: item.media_type || section.type }));
                 UIService.renderMediaRow(rowDiv, itemsWithMediaType);
+                // Call updateArrowVisibility after items are rendered and rowDiv has scrollWidth
+                setTimeout(updateArrowVisibility, 50); // Small delay for rendering
             } catch (error) {
                 console.error(`Error loading discover section "${section.title}":`, error.message);
                 rowDiv.innerHTML = `<p class="error-message">Could not load this section.</p>`;
+                 updateArrowVisibility(); // Still update arrows (they should be hidden)
             }
         }
     },
     
     setupSeasonEpisodeSelector: () => {
+        // ... (This function remains the same)
         const seasonSelect = document.getElementById('season-select');
         const episodeSelect = document.getElementById('episode-select');
         if (!seasonSelect || !episodeSelect) return;
@@ -762,20 +831,22 @@ const AppLogic = {
         }
         seasonSelect.addEventListener('change', (e) => {
             const selectedOption = e.target.options[e.target.selectedIndex];
-            episodeSelect.disabled = false; // Re-enable if it was disabled
+            episodeSelect.disabled = false;
             populateEpisodes(parseInt(selectedOption.dataset.episodes));
         });
     },
 
     showSearch: () => {
+        // ... (This function remains the same)
         UIService.showView('search-view');
         DOMElements.searchMessage.textContent = 'Type to search for movies and TV shows.';
-        DOMElements.searchResultsGrid.innerHTML = ''; // Clear previous results
-        DOMElements.searchInput.value = ''; // Clear search input
+        DOMElements.searchResultsGrid.innerHTML = '';
+        DOMElements.searchInput.value = '';
         UIService.clearAutocomplete();
     },
     
     performAutocompleteSearch: async (query) => {
+        // ... (This function remains the same)
         if (query.length < 3) { UIService.renderAutocompleteSuggestions([]); return; }
         try {
             const data = await ApiService.fetchWatchmode('autocomplete-search', { search_value: query, search_type: 2 });
@@ -787,6 +858,7 @@ const AppLogic = {
     },
 
     performSearch: async (query) => {
+        // ... (This function remains largely the same)
         UIService.clearAutocomplete();
         if (!query) {
             DOMElements.searchMessage.textContent = 'Please enter a search term.';
@@ -800,11 +872,8 @@ const AppLogic = {
         try {
             let results = [];
             try {
-                // Watchmode's /search endpoint needs type specifications
                 const watchmodeParams = {
-                    search_field: 'name',
-                    search_value: query,
-                    types: 'movie,tv_series,tv_special,short_film' // Broaden types
+                    search_field: 'name', search_value: query, types: 'movie,tv_series,tv_special,short_film'
                 };
                 const watchmodeData = await ApiService.fetchWatchmode('search', watchmodeParams);
 
@@ -812,14 +881,10 @@ const AppLogic = {
                      results = watchmodeData.title_results
                         .filter(item => item.tmdb_id && (item.tmdb_type === 'movie' || item.tmdb_type === 'tv'))
                         .map(item => ({
-                            id: String(item.tmdb_id),
-                            tmdb_id: String(item.tmdb_id),
-                            imdb_id: item.imdb_id,
+                            id: String(item.tmdb_id), tmdb_id: String(item.tmdb_id), imdb_id: item.imdb_id,
                             title: item.name,
                             poster_path: item.poster ? item.poster.replace(TMDB_IMAGE_BASE_URL,'').replace(TMDB_DETAIL_IMAGE_BASE_URL,'') : null,
-                            vote_average: item.user_score,
-                            media_type: item.tmdb_type, // 'movie' or 'tv'
-                            year: item.year
+                            vote_average: item.user_score, media_type: item.tmdb_type, year: item.year
                         }));
                 }
             } catch (watchmodeError) {
@@ -849,6 +914,7 @@ const AppLogic = {
     },
 
     showFavorites: async () => {
+        // ... (This function remains the same)
         UIService.showView('favorites-view');
         DOMElements.favoritesGrid.innerHTML = '<p class="loading-message">Loading your favorites...</p>';
         if (!currentUser) {
@@ -860,14 +926,9 @@ const AppLogic = {
             DOMElements.favoritesGrid.innerHTML = '<p class="empty-grid-message">You have no favorites yet. Find something you like!</p>';
             return;
         }
-        // Map Firestore data to the format createMediaCard expects
         const mappedFavorites = favoriteItemsData.map(fav => ({
-            id: fav.tmdb_id || fav.id, // tmdb_id is what we store
-            title: fav.title,
-            poster_path: fav.poster_path,
-            vote_average: fav.vote_average,
-            media_type: fav.type, // 'movie' or 'tv'
-            year: fav.year
+            id: fav.tmdb_id || fav.id, title: fav.title, poster_path: fav.poster_path,
+            vote_average: fav.vote_average, media_type: fav.type, year: fav.year
         }));
         UIService.renderGrid(DOMElements.favoritesGrid, mappedFavorites, null, "You haven't favorited anything yet.");
     },
@@ -886,18 +947,21 @@ const AppLogic = {
             alert("Error: Media details not found to start playback."); return;
         }
         const { id: tmdbId, title: mediaTitle, name, type: mediaType } = currentOpenDetail;
-        const finalTitle = mediaTitle || name;
+        const finalTitle = mediaTitle || name; // Use 'name' as fallback (common for TV)
 
         if (mediaType === 'movie') {
-            UIService.renderPlayer(tmdbId, finalTitle);
+            UIService.renderPlayer(mediaType, tmdbId, finalTitle);
         } else if (mediaType === 'tv') {
             const seasonSelect = document.getElementById('season-select');
             const episodeSelect = document.getElementById('episode-select');
             if (seasonSelect && episodeSelect && seasonSelect.value && episodeSelect.value) {
-                UIService.renderPlayer(tmdbId, finalTitle, seasonSelect.value, episodeSelect.value);
+                UIService.renderPlayer(mediaType, tmdbId, finalTitle, seasonSelect.value, episodeSelect.value);
             } else if (currentOpenDetail.seasons && currentOpenDetail.seasons.some(s => s.season_number === 1 && s.episode_count > 0)) {
-                 UIService.renderPlayer(tmdbId, finalTitle, 1, 1); // Default to S1E1
+                 UIService.renderPlayer(mediaType, tmdbId, finalTitle, '1', '1'); // Default to S1E1 if available
             } else {
+                // If no seasons/episodes at all (e.g. a "TV Movie" classified as TV but has no seasons)
+                // we might try to play it like a movie if Mappletv supports it, or show an error.
+                // For now, assume Mappletv needs season/episode for 'tv' type.
                 alert("Please select a season and episode, or this series might not have episode data available for direct play.");
             }
         } else {
