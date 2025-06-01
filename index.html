@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyeMovie™</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Honk&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="access-gate-section" class="active-section">
+        <h1 class="logo-title honk-font">SkyeMovie™</h1>
+        <p>Enter your 6-digit access code:</p>
+        <input type="text" id="access-code-input" maxlength="6">
+        <button id="submit-access-code">Enter</button>
+        <p id="access-error" class="error-message"></p>
+    </div>
+
+    <div id="auth-section" class="hidden-section">
+        <h1 class="logo-title honk-font">SkyeMovie™</h1>
+        <div id="login-form">
+            <h2>Login</h2>
+            <input type="email" id="login-email" placeholder="Email">
+            <input type="password" id="login-password" placeholder="Password">
+            <button id="login-button">Login</button>
+            <p class="auth-toggle">Don't have an account? <a href="#" id="show-register">Register here</a></p>
+            <p id="login-error" class="error-message"></p>
+        </div>
+        <div id="register-form" style="display: none;">
+            <h2>Register</h2>
+            <input type="email" id="register-email" placeholder="Email">
+            <input type="password" id="register-password" placeholder="Password">
+            <button id="register-button">Register</button>
+            <p class="auth-toggle">Already have an account? <a href="#" id="show-login">Login here</a></p>
+            <p id="register-error" class="error-message"></p>
+        </div>
+    </div>
+
+    <div id="main-app-section" class="hidden-section">
+        <header>
+            <h1 class="logo-title-small honk-font">SkyeMovie™</h1>
+            <div class="user-info">
+                <span id="user-email-display"></span>
+                <button id="logout-button">Logout</button>
+            </div>
+            <nav>
+                <button id="nav-discover">Discover</button>
+                <button id="nav-search">Search</button>
+                <button id="nav-favorites">My Favorites</button>
+            </nav>
+        </header>
+
+        <main>
+            <div id="discover-view" class="view active-view">
+                <h2>Discover</h2>
+                <div id="discover-grid" class="media-grid">
+                    </div>
+            </div>
+
+            <div id="search-view" class="view">
+                <h2>Search</h2>
+                <div class="search-bar-container">
+                    <input type="text" id="search-input" placeholder="Search for movies or TV shows...">
+                    <button id="search-button">Search</button>
+                </div>
+                <div id="search-results-grid" class="media-grid">
+                    </div>
+                 <div id="autocomplete-suggestions" class="autocomplete-suggestions-list">
+                    </div>
+            </div>
+
+            <div id="favorites-view" class="view">
+                <h2>My Favorites</h2>
+                <div id="favorites-grid" class="media-grid">
+                    </div>
+            </div>
+
+            <div id="detail-view" class="view">
+                <button id="back-to-list-button">&larr; Back</button>
+                <div id="media-detail-content">
+                    </div>
+            </div>
+
+            <div id="player-view" class="view">
+                <button id="close-player-button">&larr; Back to Details</button>
+                <h3 id="player-title"></h3>
+                <div id="mappletv-player-container">
+                    </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
