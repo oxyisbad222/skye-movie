@@ -101,22 +101,21 @@ body {
     font-size: 1rem;
     cursor: pointer;
     transition: background-color 0.2s ease;
-    margin-top: 5px; /* Adjusted margin */
+    margin-top: 5px;
 }
 .fullscreen-section button:hover {
     background-color: var(--accent-hover);
 }
 
-/* Google Sign-In Button */
 .google-signin-button {
-    background-color: #FFFFFF; /* Google's white */
-    color: #444444; /* Google's dark grey text */
+    background-color: #FFFFFF;
+    color: #444444;
     border: 1px solid #DDDDDD;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px; /* Space between logo and text */
-    margin-top: 15px !important; /* Ensure spacing */
+    gap: 10px;
+    margin-top: 15px !important;
 }
 .google-signin-button img {
     width: 18px;
@@ -290,11 +289,11 @@ main {
     align-items: center;
     justify-content: center;
 }
-.discover-section:hover .discover-arrow, /* Show on section hover */
-.discover-media-row-wrapper:hover .discover-arrow { /* Or on wrapper hover */
+.discover-section:hover .discover-arrow,
+.discover-media-row-wrapper:hover .discover-arrow {
     opacity: 0.8;
 }
-.discover-arrow.visible-arrow { /* Class added by JS if scrolling possible */
+.discover-arrow.visible-arrow {
     opacity: 0.8;
 }
 .discover-arrow:hover {
@@ -304,10 +303,9 @@ main {
 .discover-arrow.prev-arrow { left: 5px; }
 .discover-arrow.next-arrow { right: 5px; }
 .discover-arrow.hidden-arrow {
-    opacity: 0 !important; /* Completely hide if no scroll */
+    opacity: 0 !important;
     pointer-events: none;
 }
-
 
 /* Search Page */
 .search-controls-container {
@@ -319,8 +317,8 @@ main {
 }
 .search-bar-wrapper {
     display: flex;
-    margin-bottom: 15px; /* Space between search bar and filters */
-    background-color: var(--tertiary-bg); /* Background for the search bar itself */
+    margin-bottom: 15px;
+    background-color: var(--tertiary-bg);
     border-radius: 25px;
     padding: 5px;
 }
@@ -345,24 +343,22 @@ main {
     justify-content: center;
     cursor: pointer;
     transition: background-color 0.2s ease;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
 }
 #search-button-main:hover {
     background-color: var(--accent-hover);
 }
-.autocomplete-suggestions-list { /* Position relative to search-controls-container */
+.autocomplete-suggestions-list {
     background-color: var(--secondary-bg);
     border: 1px solid #333;
     border-radius: var(--card-border-radius);
-    /* margin-top: -15px; Removed, let it flow naturally or adjust based on final layout */
     max-height: 300px;
     overflow-y: auto;
     position: absolute; 
-    width: auto; /* Let it size to content or specific width */
-    min-width: 300px; /* Ensure it's not too narrow */
+    width: auto;
+    min-width: 300px;
     z-index: 100;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    /* JS will position this below the search input */
 }
 .autocomplete-suggestions-list div {
     padding: 12px 15px;
@@ -377,8 +373,8 @@ main {
     display: flex;
     gap: 10px;
     align-items: center;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    justify-content: center; /* Center items if they wrap */
+    flex-wrap: wrap;
+    justify-content: center;
 }
 .filter-select {
     padding: 8px 10px;
@@ -408,8 +404,39 @@ main {
     color: var(--secondary-text);
     font-size: 1.1rem;
     margin-top: 30px;
+    margin-bottom: 20px; /* Added margin for spacing from grid/pagination */
 }
 #search-results-container h2 { margin-top: 20px; }
+
+/* Pagination Controls */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 30px;
+    gap: 10px;
+}
+.pagination-button {
+    padding: 8px 15px;
+    background-color: var(--tertiary-bg);
+    color: var(--primary-text);
+    border: 1px solid #444;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.pagination-button:hover:not(:disabled) {
+    background-color: #444;
+}
+.pagination-button:disabled {
+    background-color: #222; /* Darker, less interactive */
+    color: #555;
+    cursor: not-allowed;
+}
+#page-info {
+    font-size: 0.9em;
+    color: var(--secondary-text);
+}
 
 
 /* Media Grid & Cards */
@@ -693,7 +720,16 @@ footer {
     .discover-media-row { margin: 0 5px; }
 
     .search-controls-container { padding: 10px; }
-    .filter-sort-controls { gap: 5px; } /* Reduce gap for smaller screens */
-    .filter-select, .filter-button { width: 100%; margin-bottom: 5px; } /* Stack filters */
+    .filter-sort-controls { gap: 5px; }
+    .filter-select, .filter-button { width: 100%; margin-bottom: 5px; }
+
+    .pagination-controls {
+        flex-direction: column; /* Stack on small screens */
+        gap: 8px;
+    }
+    .pagination-button {
+        width: 100%;
+        max-width: 150px; /* Max width for buttons */
+    }
 }
 
