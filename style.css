@@ -1,0 +1,378 @@
+/* style.css */
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    background-color: #141414; /* Dark background common for streaming sites */
+    color: #e5e5e5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding-top: 20px;
+}
+
+.honk-font {
+    font-family: 'Honk', cursive;
+}
+
+.logo-title {
+    font-size: 4rem;
+    color: #FF69B4; /* Pink */
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.logo-title-small {
+    font-size: 2rem;
+    color: #FF69B4; /* Pink */
+}
+
+/* Sections Styling */
+.active-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 500px; /* For gate and auth forms */
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.hidden-section {
+    display: none !important;
+}
+
+#access-gate-section p, #auth-section p {
+    margin-top: 10px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #333;
+    border-radius: 5px;
+    background-color: #222;
+    color: #fff;
+    width: calc(100% - 22px); /* Account for padding and border */
+}
+
+button {
+    padding: 10px 15px;
+    background-color: #FF69B4; /* Pink */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+button:hover {
+    background-color: #e05a9e;
+}
+
+.error-message {
+    color: #ff4d4d;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+.auth-toggle {
+    font-size: 0.9em;
+    margin-top: 15px;
+}
+.auth-toggle a {
+    color: #FF69B4;
+    text-decoration: none;
+}
+.auth-toggle a:hover {
+    text-decoration: underline;
+}
+
+
+/* Main App Styling */
+#main-app-section {
+    width: 100%;
+    max-width: 1200px; /* Content width */
+    padding: 0; /* Reset padding as sections will handle it */
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background-color: #1f1f1f;
+    border-bottom: 1px solid #333;
+    margin-bottom: 20px;
+}
+
+header nav button {
+    margin-left: 15px;
+    background-color: transparent;
+    border: 1px solid #FF69B4;
+    color: #FF69B4;
+}
+header nav button:hover, header nav button.active-nav {
+    background-color: #FF69B4;
+    color: white;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+}
+.user-info #user-email-display {
+    margin-right: 15px;
+    font-size: 0.9em;
+}
+.user-info #logout-button {
+    background-color: #555;
+    font-size: 0.8em;
+    padding: 8px 12px;
+}
+.user-info #logout-button:hover {
+    background-color: #777;
+}
+
+main {
+    padding: 0 30px;
+}
+
+.view {
+    display: none; /* Hidden by default */
+    animation: fadeIn 0.5s ease-in-out;
+}
+.active-view {
+    display: block; /* Shown when active */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+h2 {
+    border-bottom: 2px solid #FF69B4;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    color: #FF69B4;
+}
+
+.search-bar-container {
+    display: flex;
+    margin-bottom: 20px;
+}
+#search-input {
+    flex-grow: 1;
+    margin-right: 10px;
+    margin-top: 0; /* Reset from global input style */
+}
+#search-button {
+    margin-top: 0; /* Reset */
+}
+
+.autocomplete-suggestions-list {
+    background-color: #2a2a2a;
+    border: 1px solid #333;
+    border-radius: 0 0 5px 5px;
+    margin-top: -11px; /* Align with search input */
+    max-height: 300px;
+    overflow-y: auto;
+}
+.autocomplete-suggestions-list div {
+    padding: 10px;
+    cursor: pointer;
+}
+.autocomplete-suggestions-list div:hover {
+    background-color: #3f3f3f;
+}
+
+
+.media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.media-card {
+    background-color: #222;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out;
+    position: relative;
+}
+.media-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 105, 180, 0.5);
+}
+.media-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.media-card .title {
+    padding: 10px;
+    font-size: 0.9em;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.media-card .rating {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: rgba(0,0,0,0.7);
+    color: #FFD700; /* Gold */
+    padding: 3px 6px;
+    font-size: 0.8em;
+    border-radius: 3px;
+}
+.media-card .add-to-favorites {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    font-size: 1.2em;
+    line-height: 30px;
+    text-align: center;
+    cursor: pointer;
+}
+.media-card .add-to-favorites.favorited {
+    color: #FF69B4; /* Pink when favorited */
+}
+
+
+/* Detail View */
+#detail-view #back-to-list-button, #player-view #close-player-button {
+    margin-bottom: 20px;
+    background-color: #444;
+}
+#detail-view #back-to-list-button:hover, #player-view #close-player-button:hover {
+    background-color: #666;
+}
+
+#media-detail-content {
+    display: flex;
+    flex-direction: column; /* Stack image and info on small screens */
+    gap: 20px;
+}
+#media-detail-content img.detail-poster {
+    max-width: 300px; /* Limit poster size */
+    height: auto;
+    border-radius: 8px;
+    align-self: center;
+}
+.media-info h3 { /* Title in detail view */
+    font-size: 2em;
+    margin-top: 0;
+    color: #FF69B4;
+}
+.media-info p {
+    line-height: 1.6;
+}
+.media-info strong {
+    color: #bbb;
+}
+.play-button-container button {
+    font-size: 1.2em;
+    padding: 12px 25px;
+}
+.play-button-container.is-series button { /* Style differently if it's a series */
+   background-color: #007bff; /* Example: Blue for series */
+}
+.play-button-container.is-series button:hover {
+    background-color: #0056b3;
+}
+
+
+#season-episode-selector {
+    margin-top: 15px;
+}
+#season-select, #episode-select {
+    padding: 8px;
+    margin-right: 10px;
+    background-color: #333;
+    color: white;
+    border-radius: 4px;
+}
+
+/* Player View */
+#player-view h3 {
+    text-align: center;
+    margin-bottom: 15px;
+}
+#mappletv-player-container {
+    width: 100%;
+    max-width: 960px; /* Control player width */
+    height: 0;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    position: relative;
+    background-color: #000;
+    margin: 0 auto;
+    border-radius: 8px;
+    overflow: hidden; /* Important for iframe */
+}
+#mappletv-player-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+
+/* Responsive adjustments */
+@media (min-width: 768px) {
+    #media-detail-content {
+        flex-direction: row; /* Side-by-side on larger screens */
+    }
+    #media-detail-content img.detail-poster {
+        align-self: flex-start;
+    }
+    .media-info {
+        flex: 1;
+    }
+}
+
+@media (max-width: 600px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    header nav {
+        margin-top: 10px;
+        width: 100%;
+        display: flex;
+        justify-content: space-around;
+    }
+    header nav button {
+        margin-left: 0;
+        flex-grow: 1; /* Make nav buttons fill space */
+    }
+    .user-info {
+        margin-top: 10px;
+        width: 100%;
+        justify-content: space-between;
+    }
+    .logo-title {
+        font-size: 3rem;
+    }
+    .logo-title-small {
+        font-size: 1.5rem;
+    }
+    .media-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+    }
+}
