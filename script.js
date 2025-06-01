@@ -156,10 +156,8 @@ const ApiService = {
         const cacheKey = `tmdb_${endpoint}_${JSON.stringify(params)}`;
         const cached = ApiCache.get(cacheKey);
         if (cached) {
-            // console.log(`[CACHE HIT] TMDB: ${endpoint}`, params);
             return cached;
         }
-        // console.log(`[API CALL] TMDB: ${url}`);
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -182,11 +180,9 @@ const ApiService = {
         if (useCache) { 
             const cached = ApiCache.get(cacheKey); 
             if (cached) {
-                // console.log(`[CACHE HIT] Watchmode: ${endpoint}`, params);
                 return cached;
             }
         }
-        // console.log(`[API CALL] Watchmode: ${url}`);
         try {
             const response = await fetch(url);
             ApiCache.updateRateLimits(response.headers);
@@ -941,7 +937,7 @@ const AppLogic = {
 
             if (query) {
                 fetchParams.query = query;
-                if (currentSortBy) fetchParams.sort_by = currentSortBy; // Pass sort if selected, TMDB will handle if applicable to search
+                if (currentSortBy) fetchParams.sort_by = currentSortBy;
 
                 if (type === 'movie') endpoint = 'search/movie';
                 else if (type === 'tv') endpoint = 'search/tv';
@@ -954,31 +950,70 @@ const AppLogic = {
                     .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) 
                     .map(item => ({ ...item, id: String(item.id)}));
             
-            } else { // No query, using filters for discovery (TMDB Discover)
-                if (type === 'movie') {
-                    endpoint = 'discover/movie';
-                    if (sortBy === 'release_date.desc') currentSortBy = 'primary_release_date.desc';
-                    else if (sortBy === 'release_date.asc') currentSortBy = 'primary_release_date.asc';
-                } else if (type === 'tv') {
-                    endpoint = 'discover/tv';
-                    if (sortBy === 'release_date.desc') currentSortBy = 'first_air_date.desc';
-                    else if (sortBy === 'release_date.asc') currentSortBy = 'first_air_date.asc';
-                } else { 
+            } else { // No query, using filters for "discover" mode
+                if (type === 'all') { // This case should ideally not be hit if the top check works
                     DOMElements.searchMessage.textContent = 'Please select a specific type (Movies or TV Shows) to discover with filters.';
                     return; 
                 }
-                fetchParams.sort_by = currentSortBy;
-                console.log(`Discovering: type=${type}, endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
 
-                const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-                console.log("Discover API Response Data:", data);
+                let baseEndpoint = (type === 'movie') ? 'discover/movie' : 'discover/tv';
+                DOMElements.searchMessage.textContent = `Fetching popular ${type}s to sort...`;
+                console.log(`Client-side sort mode: Fetching base popular ${type}s. Selected sort: ${sortBy}`);
+                
+                let combinedResults = [];
+                try {
+                    // Fetch 2 pages (40 items) of popular content to sort client-side
+                    for (let i = 1; i <= 2; i++) { 
+                        const pageData = await ApiService.fetchTMDB(baseEndpoint, { page: i, sort_by: 'popularity.desc' });
+                        console.log(`Fetched page ${i} for client-side sort base:`, pageData);
+                        if (pageData && pageData.results) {
+                            combinedResults.push(...pageData.results);
+                        }
+                        if (!pageData.results || pageData.results.length < 20) break; 
+                    }
+                } catch (apiError) {
+                     console.error("Error fetching base data for client-side sort:", apiError);
+                     DOMElements.searchMessage.textContent = `Error fetching base data: ${apiError.message}`;
+                     return;
+                }
 
-                results = (data.results || []).map(item => ({ ...item, media_type: type, id: String(item.id) }));
-                console.log("Mapped Discover Results Count:", results.length);
+                if (combinedResults.length === 0) {
+                    DOMElements.searchMessage.textContent = `No popular ${type}s found to apply your sort.`;
+                    results = [];
+                } else {
+                    results = combinedResults.map(item => ({ ...item, media_type: type, id: String(item.id) }));
+
+                    const [sortField, sortOrder] = sortBy.split('.');
+                    
+                    results.sort((a, b) => {
+                        let valA, valB;
+
+                        if (sortField === 'release_date') { // This uses the actual date fields from TMDB
+                            valA = new Date(type === 'movie' ? a.release_date : a.first_air_date || '1900-01-01').getTime();
+                            valB = new Date(type === 'movie' ? b.release_date : b.first_air_date || '1900-01-01').getTime();
+                        } else if (sortField === 'vote_average') {
+                            valA = parseFloat(a.vote_average || 0);
+                            valB = parseFloat(b.vote_average || 0);
+                        } else if (sortField === 'popularity') {
+                            valA = parseFloat(a.popularity || 0);
+                            valB = parseFloat(b.popularity || 0);
+                        } else { 
+                            return 0; // Should not happen with current dropdown
+                        }
+                        // Handle cases where dates might be invalid or missing resulting in NaN
+                        if (isNaN(valA)) valA = (sortOrder === 'asc' ? Infinity : -Infinity);
+                        if (isNaN(valB)) valB = (sortOrder === 'asc' ? Infinity : -Infinity);
+
+                        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+                        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                    console.log(`Client-side sorted ${results.length} ${type}s by ${sortBy}`);
+                }
             }
             
             if (results.length > 0) {
-                DOMElements.searchMessage.textContent = query ? `Results for "${query}":` : `Showing ${type}s:`;
+                DOMElements.searchMessage.textContent = query ? `Results for "${query}":` : `Showing ${type}s (client-sorted by ${sortBy}):`;
             } else {
                 DOMElements.searchMessage.textContent = `No results found.`;
             }
@@ -1034,7 +1069,7 @@ const AppLogic = {
             if (seasonSelect && episodeSelect && seasonSelect.value && episodeSelect.value) {
                 season = seasonSelect.value;
                 episode = episodeSelect.value;
-                if (!season || !episode) {
+                if (!season || !episode || episodeSelect.disabled) { // Check if episode select is disabled (e.g. "No episodes listed")
                     alert("Please ensure a valid season and episode are selected.");
                     return;
                 }
