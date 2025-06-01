@@ -42,7 +42,8 @@
                 <input type="password" id="register-password" placeholder="Password">
                 <button id="register-button">Register</button>
                 <p class="auth-separator"><span>OR</span></p>
-                <button id="google-signup-button" class="google-signin-button"> <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google G Logo"> Sign up with Google
+                <button id="google-signup-button" class="google-signin-button">
+                     <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google G Logo"> Sign up with Google
                 </button>
                 <p class="auth-toggle">Already have an account? <a href="#" id="show-login">Login here</a></p>
                 <p id="register-error" class="error-message"></p>
@@ -84,17 +85,18 @@
                             <option value="tv">TV Shows</option>
                         </select>
                         <select id="sort-by" class="filter-select">
+                            <option value="relevance">Relevance (Default)</option>
                             <option value="popularity.desc">Popularity</option>
                             <option value="release_date.desc">Release Date (Newest)</option>
                             <option value="release_date.asc">Release Date (Oldest)</option>
                             <option value="vote_average.desc">Rating (Highest)</option>
                             <option value="vote_average.asc">Rating (Lowest)</option>
                         </select>
-                        <button id="apply-filters-button" class="filter-button">Apply</button>
+                        <button id="apply-filters-button" class="filter-button">Apply Filters/Sort</button>
                     </div>
                 </div>
                 <div id="search-results-container">
-                    <p id="search-message" class="search-status-message">Type to search or apply filters to discover.</p>
+                    <p id="search-message" class="search-status-message">Type to search for movies and TV shows.</p>
                     <div id="search-results-grid" class="media-grid">
                         </div>
                 </div>
