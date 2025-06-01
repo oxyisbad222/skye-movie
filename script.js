@@ -3,15 +3,13 @@
 // --- Constants & Config ---
 const TMDB_API_KEY = 'cf4df30d74d9e322e596d876fd7db13e';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
-const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500'; // For posters
-const TMDB_DETAIL_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w780'; // For detail view poster
+const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+const TMDB_DETAIL_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w780';
 
 const WATCHMODE_API_KEY = 'GnIdrvUyNWlSVmLnZcuxdSCB4jSy18icYwMEojuP';
 const WATCHMODE_BASE_URL = 'https://api.watchmode.com/v1';
 
 let CONFIG_SKYE_MOVIE_ACCESS_CODE = null;
-
-// const SITE_MAIN_THEME_COLOR = '181818'; // Not used by new Mappletv URL structure
 
 const firebaseConfig = {
   apiKey: "AIzaSyCfzT7R2S4zezUeH7BayyQtKSTZ0fDfMGw",
@@ -27,11 +25,13 @@ const firebaseConfig = {
 let fbApp;
 let fbAuth;
 let fbFirestore;
+let googleAuthProvider;
 
 try {
   fbApp = firebase.initializeApp(firebaseConfig);
   fbAuth = firebase.auth();
   fbFirestore = firebase.firestore();
+  googleAuthProvider = new firebase.auth.GoogleAuthProvider();
 } catch (e) {
   console.error("Firebase initialization error:", e);
   alert("Could not initialize Firebase. Some features may not work.");
@@ -57,6 +57,8 @@ const DOMElements = {
     loginEmailInput: document.getElementById('login-email'),
     loginPasswordInput: document.getElementById('login-password'),
     loginButton: document.getElementById('login-button'),
+    googleSignInButton: document.getElementById('google-signin-button'),
+    googleSignUpButton: document.getElementById('google-signup-button'),
     loginError: document.getElementById('login-error'),
     registerEmailInput: document.getElementById('register-email'),
     registerPasswordInput: document.getElementById('register-password'),
@@ -79,6 +81,9 @@ const DOMElements = {
     searchView: document.getElementById('search-view'),
     searchInput: document.getElementById('search-input'),
     searchButtonMain: document.getElementById('search-button-main'),
+    filterTypeSelect: document.getElementById('filter-type'),
+    sortBySelect: document.getElementById('sort-by'),
+    applyFiltersButton: document.getElementById('apply-filters-button'),
     searchResultsGrid: document.getElementById('search-results-grid'),
     searchMessage: document.getElementById('search-message'),
     autocompleteSuggestions: document.getElementById('autocomplete-suggestions'),
@@ -98,11 +103,10 @@ const DOMElements = {
 };
 DOMElements.navButtons = [DOMElements.navDiscover, DOMElements.navSearch, DOMElements.navFavorites];
 
-
 // --- API Cache ---
 const ApiCache = {
-    CACHE_PREFIX: 'skyeMovieCache_v2_',
-    DEFAULT_TTL: 3600 * 1000 * 3,
+    CACHE_PREFIX: 'skyeMovieCache_v3_',
+    DEFAULT_TTL: 3600 * 1000 * 3, // 3 hours
 
     get: (key) => {
         const itemStr = localStorage.getItem(ApiCache.CACHE_PREFIX + key);
@@ -152,7 +156,6 @@ const ApiService = {
         const cacheKey = `tmdb_${endpoint}_${JSON.stringify(params)}`;
         const cached = ApiCache.get(cacheKey);
         if (cached) return cached;
-
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -163,62 +166,46 @@ const ApiService = {
             const data = await response.json();
             ApiCache.set(cacheKey, data);
             return data;
-        } catch (error) {
-            console.error('Error fetching from TMDB:', error.message);
-            throw error;
+        } catch (error) { 
+            console.error('Error fetching from TMDB:', error.message); 
+            throw error; 
         }
     },
-
     fetchWatchmode: async (endpoint, params = {}, useCache = true) => {
         const urlParams = new URLSearchParams({ apiKey: WATCHMODE_API_KEY, ...params });
         const url = `${WATCHMODE_BASE_URL}/${endpoint}/?${urlParams}`;
-        
         const cacheKey = `watchmode_${endpoint}_${JSON.stringify(params)}`;
-        if (useCache) {
-            const cached = ApiCache.get(cacheKey);
-            if (cached) return cached;
+        if (useCache) { 
+            const cached = ApiCache.get(cacheKey); 
+            if (cached) return cached; 
         }
-        
         try {
             const response = await fetch(url);
             ApiCache.updateRateLimits(response.headers);
             if (!response.ok) {
                 let errorData = { message: response.statusText };
-                try { errorData = await response.json(); } catch (e) { /* ignore */ }
+                try { errorData = await response.json(); } catch (e) { /* ignore if error response not json */ }
                 console.error(`Watchmode API Error (${response.status}) for ${url}:`, errorData);
                 throw new Error(`Watchmode API Error (${response.status}): ${errorData.detail || errorData.message || response.statusText}`);
             }
             const data = await response.json();
             if (useCache) ApiCache.set(cacheKey, data);
             return data;
-        } catch (error) {
-            console.error('Error fetching from Watchmode:', error.message);
-            throw error;
+        } catch (error) { 
+            console.error('Error fetching from Watchmode:', error.message); 
+            throw error; 
         }
     },
-
     getMappletvPlayerUrl: (mediaType, tmdbId, season, episode) => {
-        // New URL structure:
-        // TV: https://mappletv.uk/watch/tv/{tmdb_id}-{season}-{episode}
-        // Movie: https://mappletv.uk/watch/movie/{tmdb_id}
-        // The player itself might handle autoplay and other params via its own internal logic or settings.
-        // The previously provided Mappletv.uk API params (title, poster, autoPlay, theme, etc.)
-        // were for a `/player/` endpoint. The `/watch/` endpoint might not support these URL params.
-        // We will construct the base URL as per the new format.
-
         if (mediaType === 'tv') {
-            if (!season || !episode) {
-                console.warn("Season and episode are required for TV show playback on Mappletv.uk");
-                // Default to S1E1 if not provided, or handle error
-                season = season || 1;
-                episode = episode || 1;
-            }
+            season = season || 1;
+            episode = episode || 1;
             return `https://mappletv.uk/watch/tv/${tmdbId}-${season}-${episode}`;
         } else if (mediaType === 'movie') {
             return `https://mappletv.uk/watch/movie/${tmdbId}`;
         } else {
             console.error("Unsupported media type for Mappletv.uk playback:", mediaType);
-            return null; // Or a fallback URL / error page
+            return null;
         }
     }
 };
@@ -233,7 +220,6 @@ const UIService = {
         sectionElement.classList.add('active-section');
         sectionElement.classList.remove('hidden-section');
     },
-
     showView: (viewId) => {
         document.querySelectorAll('#main-app-section .view').forEach(view => view.classList.remove('active-view'));
         const targetView = document.getElementById(viewId);
@@ -243,18 +229,14 @@ const UIService = {
                 lastActiveListView = viewId;
             }
         }
-        
         DOMElements.navButtons.forEach(btn => btn.classList.remove('active-nav'));
         const activeNavButton = document.getElementById(`nav-${viewId.replace('-view','')}`);
         if (activeNavButton) activeNavButton.classList.add('active-nav');
-        
         window.scrollTo(0,0);
     },
-
     createMediaCard: (mediaItem, isFavoriteOverride = null) => {
-        // ... (This function remains largely the same as the previous version)
-        const isMovie = mediaItem.media_type === 'movie' || (mediaItem.title && mediaItem.release_date);
-        const isTv = mediaItem.media_type === 'tv' || (mediaItem.name && mediaItem.first_air_date);
+        const isMovieLoose = mediaItem.title && mediaItem.release_date; // Looser check for movie-like structure
+        const isTvLoose = mediaItem.name && mediaItem.first_air_date; // Looser check for TV-like structure
 
         let id = String(mediaItem.id);
         let title = mediaItem.title || mediaItem.name || "Untitled";
@@ -263,16 +245,17 @@ const UIService = {
         let year = mediaItem.release_date ? mediaItem.release_date.substring(0,4) : (mediaItem.first_air_date ? mediaItem.first_air_date.substring(0,4) : '');
         
         let type = 'unknown';
-        if (mediaItem.tmdb_id) id = String(mediaItem.tmdb_id);
+        if (mediaItem.tmdb_id) id = String(mediaItem.tmdb_id); // Prefer tmdb_id if from Watchmode
         
-        if(mediaItem.media_type) {
+        // Determine type more reliably
+        if(mediaItem.media_type && (mediaItem.media_type === 'movie' || mediaItem.media_type === 'tv')) { // Explicit TMDB media_type
             type = mediaItem.media_type;
-        } else if (mediaItem.type) {
+        } else if (mediaItem.type) { // Watchmode 'type'
              type = (mediaItem.type === 'movie' || mediaItem.type === 'short_film') ? 'movie' : 
-                    (mediaItem.type === 'tv_series' || mediaItem.type === 'tv_miniseries' || mediaItem.type === 'tv_special') ? 'tv' : 'unknown';
-        } else {
-            if (isMovie) type = 'movie';
-            if (isTv) type = 'tv';
+                    (mediaItem.type === 'tv_series' || mediaItem.type === 'tv_miniseries' || mediaItem.type === 'tv_special' || mediaItem.type.startsWith('tv')) ? 'tv' : 'unknown';
+        } else { // Infer if no explicit type
+            if (isMovieLoose) type = 'movie';
+            else if (isTvLoose) type = 'tv';
         }
 
         const posterUrl = posterPath ? `${TMDB_IMAGE_BASE_URL}${posterPath}` : 'https://via.placeholder.com/180x270.png?text=No+Image';
@@ -311,8 +294,7 @@ const UIService = {
         });
         return card;
     },
-
-    renderMediaRow: (rowContainerElement, items) => { // rowContainerElement is now the .discover-media-row
+    renderMediaRow: (rowContainerElement, items) => {
         rowContainerElement.innerHTML = '';
         if (!items || items.length === 0) {
             rowContainerElement.innerHTML = '<p class="empty-row-message">No items found for this category.</p>';
@@ -324,9 +306,7 @@ const UIService = {
           }
         });
     },
-
     renderGrid: (gridElement, items, messageElement = null, emptyMessage = "No results found.") => {
-        // ... (This function remains the same)
         gridElement.innerHTML = '';
         if (messageElement) messageElement.textContent = '';
 
@@ -341,9 +321,7 @@ const UIService = {
           }
         });
     },
-    
     renderAutocompleteSuggestions: (suggestions) => {
-        // ... (This function remains the same)
         DOMElements.autocompleteSuggestions.innerHTML = '';
         if (!suggestions || suggestions.length === 0) {
             DOMElements.autocompleteSuggestions.style.display = 'none';
@@ -355,15 +333,20 @@ const UIService = {
             div.addEventListener('click', () => {
                 DOMElements.searchInput.value = item.name;
                 UIService.clearAutocomplete();
-                AppLogic.performSearch(item.name);
+                AppLogic.triggerSearchOrFilter(); // Use trigger function
             });
             DOMElements.autocompleteSuggestions.appendChild(div);
         });
         DOMElements.autocompleteSuggestions.style.display = 'block';
+        // Position autocomplete
+        const searchInputRect = DOMElements.searchInput.getBoundingClientRect();
+        const searchControlsRect = DOMElements.searchInput.closest('.search-controls-container').getBoundingClientRect();
+        
+        DOMElements.autocompleteSuggestions.style.left = `${searchInputRect.left - searchControlsRect.left}px`;
+        DOMElements.autocompleteSuggestions.style.top = `${searchInputRect.bottom - searchControlsRect.top + 5}px`; // 5px margin
+        DOMElements.autocompleteSuggestions.style.width = `${searchInputRect.width}px`;
     },
-
     renderMediaDetail: async (mediaId, mediaType) => {
-        // ... (This function remains largely the same, check for type consistency)
         DOMElements.mediaDetailContent.innerHTML = '<p class="loading-message">Loading details...</p>';
         UIService.showView('detail-view');
         currentOpenDetail = null;
@@ -372,16 +355,30 @@ const UIService = {
             let details;
             let sources = [];
             let tmdbIdForPlayer = String(mediaId);
+            let certification = 'N/A';
 
             if (mediaType === 'movie') {
                 details = await ApiService.fetchTMDB(`movie/${tmdbIdForPlayer}`, { append_to_response: 'credits,videos,release_dates' });
+                const releaseDates = details.release_dates;
+                if (releaseDates && releaseDates.results) {
+                    const usRelease = releaseDates.results.find(r => r.iso_3166_1 === 'US');
+                    if (usRelease && usRelease.release_dates) {
+                        const certEntry = usRelease.release_dates.find(rd => rd.certification && rd.certification !== "");
+                        if (certEntry) certification = certEntry.certification;
+                    }
+                }
             } else if (mediaType === 'tv') {
                 details = await ApiService.fetchTMDB(`tv/${tmdbIdForPlayer}`, { append_to_response: 'credits,videos,content_ratings,external_ids' });
+                const contentRatings = details.content_ratings;
+                if (contentRatings && contentRatings.results) {
+                    const usRating = contentRatings.results.find(r => r.iso_3166_1 === 'US');
+                    if (usRating && usRating.rating) certification = usRating.rating;
+                }
             } else {
                 throw new Error(`Unsupported media type "${mediaType}" for detail fetch.`);
             }
             
-            currentOpenDetail = { ...details, id: tmdbIdForPlayer, type: mediaType };
+            currentOpenDetail = { ...details, id: tmdbIdForPlayer, type: mediaType, certification: certification };
             
             try {
                 const watchmodeTmdbType = mediaType === 'movie' ? 'movie' : 'tv';
@@ -401,7 +398,8 @@ const UIService = {
             const releaseDate = details.release_date || details.first_air_date;
             const genres = details.genres ? details.genres.map(g => `<span>${g.name}</span>`).join('') : '';
             const posterUrl = posterPath ? `${TMDB_DETAIL_IMAGE_BASE_URL}${posterPath}` : 'https://via.placeholder.com/300x450.png?text=No+Image';
-
+            const certificationDisplay = certification && certification !== 'N/A' ? `<span class="content-rating-tag">${certification}</span>` : '';
+            
             let seasonsHtml = '';
             if (mediaType === 'tv' && details.seasons) {
                 const displaySeasons = details.seasons.filter(s => s.episode_count > 0 && (s.season_number > 0 || details.seasons.length === 1) );
@@ -417,16 +415,14 @@ const UIService = {
                         </div>`;
                 }
             }
-            
             const isFavorited = userFavorites.has(tmdbIdForPlayer);
             const sourcesDisplay = sources.length > 0 ? 
-                `<p><strong>Available on:</strong></p><div class="sources-list">${sources.map(s => `<a href="${s.web_url}" target="_blank" rel="noopener noreferrer"><span>${s.name} (${s.type})</span></a>`).join('')}</div>` :
-                '';
+                `<p><strong>Available on:</strong></p><div class="sources-list">${sources.map(s => `<a href="${s.web_url}" target="_blank" rel="noopener noreferrer"><span>${s.name} (${s.type})</span></a>`).join('')}</div>` : '';
 
             DOMElements.mediaDetailContent.innerHTML = `
                 <img src="${posterUrl}" alt="${title}" class="detail-poster">
                 <div class="media-info">
-                    <h3>${title}</h3>
+                    <h3>${title} ${certificationDisplay}</h3>
                     ${rating ? `<p><strong>Rating:</strong> ⭐ ${rating} / 10</p>`: ''}
                     ${releaseDate ? `<p><strong>Released:</strong> ${new Date(releaseDate).toLocaleDateString()}</p>` : ''}
                     ${genres ? `<p><strong>Genres:</strong></p><div class="genres-list">${genres}</div>` : ''}
@@ -451,7 +447,6 @@ const UIService = {
             if (mediaType === 'tv' && document.getElementById('season-select')) {
                 AppLogic.setupSeasonEpisodeSelector();
             }
-
             document.getElementById('play-media-button').addEventListener('click', AppLogic.handlePlayMedia);
 
         } catch (error) {
@@ -459,12 +454,11 @@ const UIService = {
             DOMElements.mediaDetailContent.innerHTML = `<p class="error-message">Error loading details: ${error.message}. Please try again.</p>`;
         }
     },
-
     renderPlayer: (mediaType, tmdbId, title, season, episode) => {
         const playerUrl = ApiService.getMappletvPlayerUrl(mediaType, tmdbId, season, episode);
         if (!playerUrl) {
             DOMElements.mappletvPlayerContainer.innerHTML = `<p class="error-message">Could not generate player URL for this content.</p>`;
-            UIService.showView('player-view'); // Show player view even with error
+            UIService.showView('player-view');
             DOMElements.playerTitle.textContent = "Playback Error";
             return;
         }
@@ -480,7 +474,6 @@ const UIService = {
 
 // --- Auth Service ---
 const AuthService = {
-    // ... (This service remains the same as the previous version)
     fetchAndSetAccessCode: async () => {
         DOMElements.submitAccessCodeButton.disabled = true;
         DOMElements.accessError.textContent = 'Loading configuration...';
@@ -515,7 +508,7 @@ const AuthService = {
         if (code === CONFIG_SKYE_MOVIE_ACCESS_CODE) {
             DOMElements.accessError.textContent = '';
             localStorage.setItem('skyeMovieAccessGranted', 'true');
-            AuthService.observeAuthState();
+            AuthService.observeAuthState(); // Re-check auth state
         } else {
             DOMElements.accessError.textContent = 'Invalid access code.';
             localStorage.removeItem('skyeMovieAccessGranted');
@@ -525,8 +518,10 @@ const AuthService = {
         const email = DOMElements.registerEmailInput.value;
         const password = DOMElements.registerPasswordInput.value;
         DOMElements.registerError.textContent = '';
+        DOMElements.loginError.textContent = ''; // Clear other form error
         try {
             await fbAuth.createUserWithEmailAndPassword(email, password);
+            // onAuthStateChanged will handle UI changes
         } catch (error) {
             DOMElements.registerError.textContent = error.message;
         }
@@ -535,16 +530,32 @@ const AuthService = {
         const email = DOMElements.loginEmailInput.value;
         const password = DOMElements.loginPasswordInput.value;
         DOMElements.loginError.textContent = '';
+        DOMElements.registerError.textContent = ''; // Clear other form error
         try {
             await fbAuth.signInWithEmailAndPassword(email, password);
+            // onAuthStateChanged will handle UI changes
         } catch (error) {
             DOMElements.loginError.textContent = error.message;
+        }
+    },
+    handleGoogleSignIn: async () => {
+        DOMElements.loginError.textContent = '';
+        DOMElements.registerError.textContent = '';
+        try {
+            await fbAuth.signInWithPopup(googleAuthProvider);
+            // onAuthStateChanged will handle UI changes
+        } catch (error) {
+            console.error("Google Sign-In Error:", error);
+            const errorMessage = `Google Sign-In failed: ${error.code === 'auth/popup-closed-by-user' ? 'Popup closed before sign-in completed.' : error.message}`;
+            DOMElements.loginError.textContent = errorMessage;
+            DOMElements.registerError.textContent = errorMessage; // Show on both forms for visibility
         }
     },
     handleLogout: async () => {
         try {
             await fbAuth.signOut();
-             localStorage.removeItem('skyeMovieAccessGranted');
+            localStorage.removeItem('skyeMovieAccessGranted'); // Revoke site access on logout
+            // onAuthStateChanged will handle UI changes (show access gate)
         } catch (error) {
             console.error("Logout error:", error);
         }
@@ -558,35 +569,38 @@ const AuthService = {
                 DOMElements.userEmailDisplay.textContent = user.email;
                 await FavoritesService.loadFavorites();
                 UIService.showSection(DOMElements.mainAppSection);
-                if (!lastActiveListView || lastActiveListView === 'discover-view' || DOMElements.discoverView.innerHTML === '') {
+                // If discover view is empty, or it was the last active, or no last active, show discover.
+                if (!lastActiveListView || lastActiveListView === 'discover-view' || DOMElements.discoverView.innerHTML.trim() === '') {
                      AppLogic.showDiscover();
                 } else {
                     UIService.showView(lastActiveListView);
                 }
             } else {
                 currentUser = null;
-                userFavorites.clear();
+                userFavorites.clear(); // Clear local cache of favorites
                 DOMElements.userEmailDisplay.textContent = '';
                 
-                if (!accessGranted && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) {
+                if (!accessGranted && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) { // Config loaded, but no access
                      UIService.showSection(DOMElements.accessGateSection);
-                     DOMElements.accessError.textContent = '';
+                     DOMElements.accessError.textContent = ''; 
                      DOMElements.submitAccessCodeButton.disabled = false;
-                } else if (accessGranted && !user && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) {
+                } else if (accessGranted && !user && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) { // Access granted, but no user (e.g. after logout, then manual nav or failed auth)
                     UIService.showSection(DOMElements.authSection);
-                } else if (CONFIG_SKYE_MOVIE_ACCESS_CODE === null) {
+                } else if (CONFIG_SKYE_MOVIE_ACCESS_CODE === null) { // Config still loading
                     UIService.showSection(DOMElements.accessGateSection);
                     DOMElements.accessError.textContent = 'Loading site configuration...';
                     DOMElements.submitAccessCodeButton.disabled = true;
-                } else { 
+                } else { // Default: if logged out, show access gate again
                     UIService.showSection(DOMElements.accessGateSection);
                     DOMElements.accessError.textContent = '';
                     DOMElements.submitAccessCodeButton.disabled = false;
                 }
+                 // Reset auth forms
                  DOMElements.loginForm.style.display = 'block';
                  DOMElements.registerForm.style.display = 'none';
-                 DOMElements.loginError.textContent = '';
-                 DOMElements.registerError.textContent = '';
+                 DOMElements.loginEmailInput.value = ''; DOMElements.loginPasswordInput.value = '';
+                 DOMElements.registerEmailInput.value = ''; DOMElements.registerPasswordInput.value = '';
+                 DOMElements.loginError.textContent = ''; DOMElements.registerError.textContent = '';
             }
         });
     }
@@ -594,7 +608,6 @@ const AuthService = {
 
 // --- Favorites Service ---
 const FavoritesService = {
-    // ... (This service remains the same as the previous version)
     loadFavorites: async () => {
         if (!currentUser) return;
         userFavorites.clear();
@@ -603,8 +616,9 @@ const FavoritesService = {
             snapshot.forEach(doc => userFavorites.add(doc.id));
             
             if (document.getElementById('favorites-view').classList.contains('active-view')) {
-                AppLogic.showFavorites();
+                AppLogic.showFavorites(); // Refresh if currently on favorites page
             }
+            // Refresh fav buttons on any currently displayed media cards
             document.querySelectorAll('.media-card .add-to-favorites').forEach(btn => {
                 const cardId = btn.dataset.id;
                 if (userFavorites.has(cardId)) {
@@ -613,10 +627,15 @@ const FavoritesService = {
                     btn.classList.remove('favorited'); btn.innerHTML = '♡'; btn.title = 'Add to favorites';
                 }
             });
-        } catch (error) { console.error("Error loading favorites:", error.message); }
+        } catch (error) { 
+            console.error("Error loading favorites:", error.message); 
+        }
     },
     toggleFavorite: async (mediaId, mediaDetails, isCurrentlyFavorited, buttonElement, isDetailButton = false) => {
-        if (!currentUser) { alert("Please login to manage favorites."); return; }
+        if (!currentUser) { 
+            alert("Please login to manage favorites."); 
+            return; 
+        }
         mediaId = String(mediaId);
 
         try {
@@ -630,7 +649,17 @@ const FavoritesService = {
                     buttonElement.title = 'Add to favorites';
                 }
             } else {
-                await favRef.set({ ...mediaDetails, tmdb_id: mediaId, addedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                // Ensure all necessary fields are present in mediaDetails for Firestore
+                const favoriteData = {
+                    title: mediaDetails.title || 'N/A',
+                    type: mediaDetails.type || 'unknown',
+                    poster_path: mediaDetails.poster_path || null,
+                    vote_average: mediaDetails.vote_average || null,
+                    year: mediaDetails.year || null,
+                    tmdb_id: mediaId, // Explicitly store the TMDB ID
+                    addedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                await favRef.set(favoriteData);
                 userFavorites.add(mediaId);
                 if (buttonElement) {
                     buttonElement.classList.add('favorited');
@@ -638,11 +667,12 @@ const FavoritesService = {
                     buttonElement.title = 'Remove from favorites';
                 }
             }
+            // If on favorites view and an item is removed, re-render
             if (isCurrentlyFavorited && document.getElementById('favorites-view').classList.contains('active-view')) {
                 AppLogic.showFavorites();
             }
         } catch (error) {
-            console.error("Error toggling favorite:", error.message, error);
+            console.error("Error toggling favorite:", error.message, error); // Log the full error object
             alert(`Error updating favorites: ${error.message}. Check console for details.`);
         }
     },
@@ -651,270 +681,324 @@ const FavoritesService = {
         const favoriteItemsData = [];
         try {
             const snapshot = await fbFirestore.collection('users').doc(currentUser.uid).collection('favorites').orderBy('addedAt', 'desc').get();
-            snapshot.forEach(doc => favoriteItemsData.push({ id: doc.id, ...doc.data() }));
-        } catch (error) { console.error("Error fetching favorite details:", error.message); }
+            snapshot.forEach(doc => favoriteItemsData.push({ id: doc.id, ...doc.data() })); // doc.id is the TMDB_ID
+        } catch (error) { 
+            console.error("Error fetching favorite details:", error.message); 
+        }
         return favoriteItemsData;
     }
 };
 
-
 // --- App Logic & Event Handlers ---
 const AppLogic = {
     init: async () => {
-        // ... (Init logic remains largely the same for event listeners)
         DOMElements.currentYearSpan.textContent = new Date().getFullYear();
         
         const configLoaded = await AuthService.fetchAndSetAccessCode(); 
-        AuthService.observeAuthState();
+        AuthService.observeAuthState(); // Called regardless of config load to handle UI display
 
-        if (!configLoaded) { return; }
+        if (!configLoaded) {
+            // AuthService.fetchAndSetAccessCode already handles UI for error state
+            return; 
+        }
         
+        // Standard Event Listeners
         DOMElements.submitAccessCodeButton.addEventListener('click', AuthService.handleAccessCode);
         DOMElements.accessCodeInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') AuthService.handleAccessCode(); });
         
         DOMElements.registerButton.addEventListener('click', AuthService.handleRegister);
         DOMElements.loginButton.addEventListener('click', AuthService.handleLogin);
+        DOMElements.googleSignInButton.addEventListener('click', AuthService.handleGoogleSignIn);
+        DOMElements.googleSignUpButton.addEventListener('click', AuthService.handleGoogleSignIn); // Use same handler
         DOMElements.logoutButton.addEventListener('click', AuthService.handleLogout);
 
-        DOMElements.showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); DOMElements.loginForm.style.display = 'none'; DOMElements.registerForm.style.display = 'block'; });
-        DOMElements.showLoginLink.addEventListener('click', (e) => { e.preventDefault(); DOMElements.registerForm.style.display = 'none'; DOMElements.loginForm.style.display = 'block'; });
+        DOMElements.showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); DOMElements.loginForm.style.display = 'none'; DOMElements.registerForm.style.display = 'block'; DOMElements.loginError.textContent=''; DOMElements.registerError.textContent='';});
+        DOMElements.showLoginLink.addEventListener('click', (e) => { e.preventDefault(); DOMElements.registerForm.style.display = 'none'; DOMElements.loginForm.style.display = 'block'; DOMElements.loginError.textContent=''; DOMElements.registerError.textContent='';});
 
         DOMElements.navDiscover.addEventListener('click', AppLogic.showDiscover);
         DOMElements.navSearch.addEventListener('click', AppLogic.showSearch);
         DOMElements.navFavorites.addEventListener('click', AppLogic.showFavorites);
 
         DOMElements.backToListButton.addEventListener('click', () => UIService.showView(lastActiveListView || 'discover-view'));
-        DOMElements.closePlayerButton.addEventListener('click', () => {
+        DOMElements.closePlayerButton.addEventListener('click', () => { 
             DOMElements.mappletvPlayerContainer.innerHTML = ''; // Important to stop video
-            UIService.showView('detail-view');
+            UIService.showView('detail-view'); // Assumes currentOpenDetail is populated
         });
         
+        // Search and Filter Listeners
         let searchDebounceTimer;
         DOMElements.searchInput.addEventListener('input', () => {
-            clearTimeout(searchDebounceTimer);
+            clearTimeout(searchDebounceTimer); 
             const query = DOMElements.searchInput.value.trim();
             if (query.length > 2) {
                 searchDebounceTimer = setTimeout(() => AppLogic.performAutocompleteSearch(query), 300);
-            } else { UIService.clearAutocomplete(); }
+            } else { 
+                UIService.clearAutocomplete(); 
+            }
         });
-        DOMElements.searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') { UIService.clearAutocomplete(); AppLogic.performSearch(DOMElements.searchInput.value.trim()); }
+        DOMElements.searchInput.addEventListener('keypress', (e) => { 
+            if (e.key === 'Enter') { 
+                UIService.clearAutocomplete(); 
+                AppLogic.triggerSearchOrFilter(); 
+            }
         });
         DOMElements.searchButtonMain.addEventListener('click', () => {
-            UIService.clearAutocomplete(); AppLogic.performSearch(DOMElements.searchInput.value.trim());
+            UIService.clearAutocomplete(); 
+            AppLogic.triggerSearchOrFilter(); 
         });
+        DOMElements.applyFiltersButton.addEventListener('click', AppLogic.triggerSearchOrFilter);
+        
+        // Hide autocomplete if clicked outside the search controls container or suggestions list
         document.addEventListener('click', (event) => {
-            if (DOMElements.searchView.contains(event.target) && 
-                !DOMElements.searchInput.parentElement.contains(event.target) && 
-                !DOMElements.autocompleteSuggestions.contains(event.target)) {
-                UIService.clearAutocomplete();
+            const searchControlsContainer = DOMElements.searchInput.closest('.search-controls-container');
+            if (searchControlsContainer && !searchControlsContainer.contains(event.target) && 
+                DOMElements.autocompleteSuggestions.style.display === 'block') {
+                 UIService.clearAutocomplete();
             }
         });
     },
 
-    discoverSectionsConfig: [
-        { title: 'Trending Movies This Week', endpoint: 'trending/movie/week', type: 'movie' },
-        { title: 'Popular TV Shows', endpoint: 'tv/popular', type: 'tv' },
-        { title: 'Upcoming Movies', endpoint: 'movie/upcoming', type: 'movie' },
-        { title: 'Top Rated Movies', endpoint: 'movie/top_rated', type: 'movie' },
-        { title: 'Trending TV Shows This Week', endpoint: 'trending/tv/week', type: 'tv' },
+    featuredNetworks: [ // Using Watchmode Source IDs
+        { name: 'Netflix', id: 203 },
+        { name: 'Disney+', id: 372 }, // Common ID for Disney+
+        { name: 'Max', id: 387 },     // Formerly HBO Max
+        { name: 'Prime Video', id: 26 } // Amazon Prime Video
     ],
+
+    discoverSectionsConfig: [
+        // source: 'tmdb' or 'watchmode'
+        { title: 'Trending Movies This Week', endpoint: 'trending/movie/week', type: 'movie', source: 'tmdb' },
+        { title: 'Popular TV Shows', endpoint: 'tv/popular', type: 'tv', source: 'tmdb' },
+        { title: 'Top Rated Movies', endpoint: 'movie/top_rated', type: 'movie', source: 'tmdb' },
+        { title: 'Trending TV Shows This Week', endpoint: 'trending/tv/week', type: 'tv', source: 'tmdb' },
+        // "By Network" sections will be added after these TMDB ones, then "Upcoming" at the very end.
+    ],
+    upcomingMoviesConfig: { title: 'Upcoming Movies', endpoint: 'movie/upcoming', type: 'movie', source: 'tmdb' },
+
 
     showDiscover: async () => {
         UIService.showView('discover-view');
-        DOMElements.discoverView.innerHTML = '';
+        DOMElements.discoverView.innerHTML = ''; // CRITICAL: Clear previous content ONCE
 
-        for (const section of AppLogic.discoverSectionsConfig) {
-            const sectionDiv = document.createElement('div');
-            sectionDiv.className = 'discover-section';
-            
-            const titleEl = document.createElement('h2');
-            titleEl.className = 'discover-section-title';
-            titleEl.textContent = section.title;
-            sectionDiv.appendChild(titleEl);
-
-            // Create a wrapper for the row and its arrows
-            const rowWrapper = document.createElement('div');
-            rowWrapper.className = 'discover-media-row-wrapper';
-
-            const rowDiv = document.createElement('div');
-            rowDiv.className = 'discover-media-row';
-            rowDiv.innerHTML = '<p class="loading-message">Loading...</p>';
-            rowWrapper.appendChild(rowDiv); // Add row to wrapper
-
-            // Add navigation arrows
-            const prevArrow = document.createElement('button');
-            prevArrow.className = 'discover-arrow prev-arrow';
-            prevArrow.innerHTML = '&#10094;'; // Left arrow
-            prevArrow.title = "Previous";
-            prevArrow.classList.add('hidden-arrow'); // Initially hidden
-
-            const nextArrow = document.createElement('button');
-            nextArrow.className = 'discover-arrow next-arrow';
-            nextArrow.innerHTML = '&#10095;'; // Right arrow
-            nextArrow.title = "Next";
-            nextArrow.classList.add('hidden-arrow'); // Initially hidden
-
-            rowWrapper.appendChild(prevArrow);
-            rowWrapper.appendChild(nextArrow);
-            
-            sectionDiv.appendChild(rowWrapper); // Add wrapper to section
-            DOMElements.discoverView.appendChild(sectionDiv);
-
-            // Arrow functionality
-            const scrollAmount = () => rowDiv.clientWidth * 0.8; // Scroll 80% of visible width
-
-            prevArrow.addEventListener('click', () => {
-                rowDiv.scrollLeft -= scrollAmount();
+        const tmdbSections = AppLogic.discoverSectionsConfig.filter(s => s.source === 'tmdb');
+        for (const sectionConfig of tmdbSections) {
+            await AppLogic.renderDiscoverSection(sectionConfig.title, async () => {
+                const data = await ApiService.fetchTMDB(sectionConfig.endpoint, { page: 1 });
+                return data.results.map(item => ({ ...item, media_type: item.media_type || sectionConfig.type }));
             });
-            nextArrow.addEventListener('click', () => {
-                rowDiv.scrollLeft += scrollAmount();
+        }
+        
+        for (const network of AppLogic.featuredNetworks) {
+            await AppLogic.renderDiscoverSection(`Popular on ${network.name}`, async () => {
+                const data = await ApiService.fetchWatchmode('list-titles', {
+                    source_ids: network.id,
+                    sort_by: 'popularity_desc', // Or 'weighted_average_score_desc' for ratings
+                    types: 'movie,tv_series', 
+                    limit: 20 
+                });
+                return (data.titles || []).map(item => ({
+                    id: item.tmdb_id || item.id,
+                    tmdb_id: item.tmdb_id,
+                    imdb_id: item.imdb_id,
+                    title: item.title,
+                    poster_path: item.poster ? item.poster.replace(TMDB_IMAGE_BASE_URL, '') : null,
+                    vote_average: item.user_score,
+                    media_type: item.tmdb_type || (item.type === 'movie' ? 'movie' : 'tv'),
+                    year: item.year
+                }));
             });
+        }
 
-            const updateArrowVisibility = () => {
-                // Using a small tolerance for scroll position checks
-                const tolerance = 5; 
-                const atStart = rowDiv.scrollLeft <= tolerance;
-                const atEnd = rowDiv.scrollLeft + rowDiv.clientWidth >= rowDiv.scrollWidth - tolerance;
+        // Add Upcoming Movies at the very end
+        await AppLogic.renderDiscoverSection(AppLogic.upcomingMoviesConfig.title, async () => {
+            const data = await ApiService.fetchTMDB(AppLogic.upcomingMoviesConfig.endpoint, { page: 1 });
+            return data.results.map(item => ({ ...item, media_type: item.media_type || AppLogic.upcomingMoviesConfig.type }));
+        });
+    },
 
+    renderDiscoverSection: async (title, fetchDataFunction) => {
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'discover-section';
+        const titleEl = document.createElement('h2');
+        titleEl.className = 'discover-section-title';
+        titleEl.textContent = title;
+        sectionDiv.appendChild(titleEl);
+
+        const rowWrapper = document.createElement('div');
+        rowWrapper.className = 'discover-media-row-wrapper';
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'discover-media-row';
+        rowDiv.innerHTML = '<p class="loading-message">Loading...</p>';
+        rowWrapper.appendChild(rowDiv);
+
+        const prevArrow = document.createElement('button');
+        prevArrow.className = 'discover-arrow prev-arrow'; prevArrow.innerHTML = '&#10094;'; prevArrow.title = "Previous";
+        const nextArrow = document.createElement('button');
+        nextArrow.className = 'discover-arrow next-arrow'; nextArrow.innerHTML = '&#10095;'; nextArrow.title = "Next";
+        
+        // Initially hide arrows until content loads and scrollability is known
+        prevArrow.classList.add('hidden-arrow');
+        nextArrow.classList.add('hidden-arrow');
+
+        rowWrapper.appendChild(prevArrow); rowWrapper.appendChild(nextArrow);
+        sectionDiv.appendChild(rowWrapper);
+        DOMElements.discoverView.appendChild(sectionDiv);
+
+        const scrollAmount = () => rowDiv.clientWidth * 0.8; // Scroll by 80% of visible width
+        prevArrow.addEventListener('click', () => { rowDiv.scrollLeft -= scrollAmount(); });
+        nextArrow.addEventListener('click', () => { rowDiv.scrollLeft += scrollAmount(); });
+
+        const updateArrowVisibility = () => {
+            // Using a small tolerance (e.g., 1px or 5px) for scroll position checks can be helpful
+            const tolerance = 5; 
+            const atStart = rowDiv.scrollLeft <= tolerance;
+            // Check if scrollable content width is greater than visible client width
+            const isScrollable = rowDiv.scrollWidth > rowDiv.clientWidth + tolerance;
+            const atEnd = rowDiv.scrollLeft + rowDiv.clientWidth >= rowDiv.scrollWidth - tolerance;
+
+            if (!isScrollable) {
+                prevArrow.classList.add('hidden-arrow');
+                prevArrow.classList.remove('visible-arrow');
+                nextArrow.classList.add('hidden-arrow');
+                nextArrow.classList.remove('visible-arrow');
+            } else {
                 prevArrow.classList.toggle('hidden-arrow', atStart);
+                prevArrow.classList.toggle('visible-arrow', !atStart);
                 nextArrow.classList.toggle('hidden-arrow', atEnd);
-
-                // If no scrolling is possible (all items fit), hide both
-                if (rowDiv.scrollWidth <= rowDiv.clientWidth) {
-                    prevArrow.classList.add('hidden-arrow');
-                    nextArrow.classList.add('hidden-arrow');
-                }
-            };
-            
-            // Use ResizeObserver to update arrows if container size changes
-            // and on initial load after items are rendered.
-            const observer = new ResizeObserver(updateArrowVisibility);
-            observer.observe(rowDiv);
-            rowDiv.addEventListener('scroll', updateArrowVisibility, { passive: true });
-
-
-            try {
-                const data = await ApiService.fetchTMDB(section.endpoint, { page: 1 });
-                const itemsWithMediaType = data.results.map(item => ({ ...item, media_type: item.media_type || section.type }));
-                UIService.renderMediaRow(rowDiv, itemsWithMediaType);
-                // Call updateArrowVisibility after items are rendered and rowDiv has scrollWidth
-                setTimeout(updateArrowVisibility, 50); // Small delay for rendering
-            } catch (error) {
-                console.error(`Error loading discover section "${section.title}":`, error.message);
-                rowDiv.innerHTML = `<p class="error-message">Could not load this section.</p>`;
-                 updateArrowVisibility(); // Still update arrows (they should be hidden)
+                nextArrow.classList.toggle('visible-arrow', !atEnd);
             }
+        };
+        
+        const observer = new ResizeObserver(updateArrowVisibility); 
+        observer.observe(rowDiv); // Observe for resize changes
+        // Also listen for scroll events on the row itself to update arrows during manual scroll (e.g., touch)
+        rowDiv.addEventListener('scroll', updateArrowVisibility, { passive: true });
+
+        try {
+            const items = await fetchDataFunction();
+            UIService.renderMediaRow(rowDiv, items);
+            // Call updateArrowVisibility after items are rendered and rowDiv has its final scrollWidth
+            // Using a small timeout can help ensure the DOM has updated.
+            setTimeout(updateArrowVisibility, 100); 
+        } catch (error) {
+            console.error(`Error loading section "${title}":`, error.message);
+            rowDiv.innerHTML = `<p class="error-message">Could not load this section.</p>`;
+            updateArrowVisibility(); // Ensure arrows are hidden if loading fails
         }
     },
     
     setupSeasonEpisodeSelector: () => {
-        // ... (This function remains the same)
         const seasonSelect = document.getElementById('season-select');
         const episodeSelect = document.getElementById('episode-select');
         if (!seasonSelect || !episodeSelect) return;
 
         const populateEpisodes = (episodeCount) => {
-            episodeSelect.innerHTML = '';
+            episodeSelect.innerHTML = ''; // Clear previous episodes
             if (episodeCount > 0) {
                 for (let i = 1; i <= episodeCount; i++) {
                     episodeSelect.add(new Option(`Episode ${i}`, i));
                 }
+                episodeSelect.disabled = false;
             } else {
                  episodeSelect.add(new Option(`No episodes listed`, ''));
                  episodeSelect.disabled = true;
             }
         };
+
+        // Initial population based on the first selected season
         const initialSeasonOption = seasonSelect.options[seasonSelect.selectedIndex];
         if (initialSeasonOption) {
             populateEpisodes(parseInt(initialSeasonOption.dataset.episodes));
         }
+
         seasonSelect.addEventListener('change', (e) => {
             const selectedOption = e.target.options[e.target.selectedIndex];
-            episodeSelect.disabled = false;
             populateEpisodes(parseInt(selectedOption.dataset.episodes));
         });
     },
-
     showSearch: () => {
-        // ... (This function remains the same)
         UIService.showView('search-view');
-        DOMElements.searchMessage.textContent = 'Type to search for movies and TV shows.';
-        DOMElements.searchResultsGrid.innerHTML = '';
-        DOMElements.searchInput.value = '';
+        DOMElements.searchMessage.textContent = 'Type to search or apply filters to discover.';
+        DOMElements.searchResultsGrid.innerHTML = ''; // Clear previous results
+        DOMElements.searchInput.value = ''; // Clear search input
         UIService.clearAutocomplete();
+        // Reset filters to default
+        DOMElements.filterTypeSelect.value = 'all';
+        DOMElements.sortBySelect.value = 'popularity.desc';
     },
-    
     performAutocompleteSearch: async (query) => {
-        // ... (This function remains the same)
-        if (query.length < 3) { UIService.renderAutocompleteSuggestions([]); return; }
+        if (query.length < 3) { 
+            UIService.renderAutocompleteSuggestions([]); 
+            return; 
+        }
         try {
-            const data = await ApiService.fetchWatchmode('autocomplete-search', { search_value: query, search_type: 2 });
+            // Using Watchmode for autocomplete as it's generally good for titles
+            const data = await ApiService.fetchWatchmode('autocomplete-search', { search_value: query, search_type: 2 }); // search_type 2 for titles
              UIService.renderAutocompleteSuggestions(data && data.results ? data.results : []);
         } catch (error) {
             console.warn("Autocomplete search failed:", error.message);
-            UIService.renderAutocompleteSuggestions([]);
+            UIService.renderAutocompleteSuggestions([]); // Clear on error
         }
     },
-
-    performSearch: async (query) => {
-        // ... (This function remains largely the same)
+    triggerSearchOrFilter: () => {
+        const query = DOMElements.searchInput.value.trim();
+        const type = DOMElements.filterTypeSelect.value;
+        const sortBy = DOMElements.sortBySelect.value;
+        AppLogic.performSearch(query, type, sortBy);
+    },
+    performSearch: async (query, type = 'all', sortBy = 'popularity.desc') => {
         UIService.clearAutocomplete();
-        if (!query) {
-            DOMElements.searchMessage.textContent = 'Please enter a search term.';
-            DOMElements.searchResultsGrid.innerHTML = '';
-            return;
-        }
-        DOMElements.searchMessage.textContent = `Searching for "${query}"...`;
         DOMElements.searchResultsGrid.innerHTML = '';
         UIService.showView('search-view');
 
+        if (!query && type === 'all') {
+            DOMElements.searchMessage.textContent = 'Please enter a search term or select a filter type to discover.';
+            return;
+        }
+        
+        const loadingMessage = query ? `Searching for "${query}"...` : `Discovering ${type === 'all' ? 'popular items' : type + 's'}...`;
+        DOMElements.searchMessage.textContent = loadingMessage;
+
         try {
             let results = [];
-            try {
-                const watchmodeParams = {
-                    search_field: 'name', search_value: query, types: 'movie,tv_series,tv_special,short_film'
-                };
-                const watchmodeData = await ApiService.fetchWatchmode('search', watchmodeParams);
+            let fetchParams = { page: 1, sort_by: sortBy };
+            let endpoint = '';
 
-                if (watchmodeData && watchmodeData.title_results && watchmodeData.title_results.length > 0) {
-                     results = watchmodeData.title_results
-                        .filter(item => item.tmdb_id && (item.tmdb_type === 'movie' || item.tmdb_type === 'tv'))
-                        .map(item => ({
-                            id: String(item.tmdb_id), tmdb_id: String(item.tmdb_id), imdb_id: item.imdb_id,
-                            title: item.name,
-                            poster_path: item.poster ? item.poster.replace(TMDB_IMAGE_BASE_URL,'').replace(TMDB_DETAIL_IMAGE_BASE_URL,'') : null,
-                            vote_average: item.user_score, media_type: item.tmdb_type, year: item.year
-                        }));
+            if (query) { // Keyword search
+                fetchParams.query = query;
+                if (type === 'movie') endpoint = 'search/movie';
+                else if (type === 'tv') endpoint = 'search/tv';
+                else endpoint = 'search/multi';
+
+                const data = await ApiService.fetchTMDB(endpoint, fetchParams);
+                results = data.results.filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path)
+                                   .map(item => ({ ...item, id: String(item.id)}));
+            
+            } else { // No query, using filters for discovery (TMDB Discover)
+                if (type === 'movie') endpoint = 'discover/movie';
+                else if (type === 'tv') endpoint = 'discover/tv';
+                else { 
+                    DOMElements.searchMessage.textContent = 'Please select a specific type (Movies or TV Shows) to discover with filters.';
+                    return; // Don't proceed if 'all' types and no query
                 }
-            } catch (watchmodeError) {
-                console.warn("Watchmode search failed, trying TMDB. Error:", watchmodeError.message);
-            }
-
-            if (results.length === 0) {
-                console.log("Watchmode returned no usable results or failed. Falling back to TMDB search.");
-                const tmdbData = await ApiService.fetchTMDB('search/multi', { query: query, include_adult: 'false' });
-                results = tmdbData.results
-                    .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path)
-                    .map(item => ({ ...item, id: String(item.id)}));
+                const data = await ApiService.fetchTMDB(endpoint, fetchParams);
+                // Ensure media_type is correctly set for discover results
+                results = data.results.map(item => ({ ...item, media_type: type, id: String(item.id) }));
             }
             
             if (results.length > 0) {
-                DOMElements.searchMessage.textContent = `Results for "${query}":`;
+                DOMElements.searchMessage.textContent = query ? `Results for "${query}":` : `Showing ${type}s:`;
             } else {
-                DOMElements.searchMessage.textContent = `No results found for "${query}".`;
+                DOMElements.searchMessage.textContent = `No results found.`;
             }
             UIService.renderGrid(DOMElements.searchResultsGrid, results, null);
 
         } catch (error) {
-            console.error("Search failed:", error.message);
-            DOMElements.searchMessage.textContent = `Search failed: ${error.message}. Please try again.`;
-            DOMElements.searchResultsGrid.innerHTML = '';
+            console.error("Search/Filter failed:", error.message);
+            DOMElements.searchMessage.textContent = `Operation failed: ${error.message}. Please try again.`;
         }
     },
-
     showFavorites: async () => {
-        // ... (This function remains the same)
         UIService.showView('favorites-view');
         DOMElements.favoritesGrid.innerHTML = '<p class="loading-message">Loading your favorites...</p>';
         if (!currentUser) {
@@ -927,12 +1011,15 @@ const AppLogic = {
             return;
         }
         const mappedFavorites = favoriteItemsData.map(fav => ({
-            id: fav.tmdb_id || fav.id, title: fav.title, poster_path: fav.poster_path,
-            vote_average: fav.vote_average, media_type: fav.type, year: fav.year
+            id: fav.tmdb_id || fav.id, // Use tmdb_id as primary if available from stored data
+            title: fav.title,
+            poster_path: fav.poster_path,
+            vote_average: fav.vote_average,
+            media_type: fav.type, // 'movie' or 'tv'
+            year: fav.year
         }));
         UIService.renderGrid(DOMElements.favoritesGrid, mappedFavorites, null, "You haven't favorited anything yet.");
     },
-
     handleMediaItemClick: async (mediaId, mediaTypeFromCard) => {
         if (!mediaId || !mediaTypeFromCard || mediaTypeFromCard === 'unknown') {
             console.error("Invalid media ID or type for detail view:", mediaId, mediaTypeFromCard);
@@ -941,32 +1028,40 @@ const AppLogic = {
         }
         await UIService.renderMediaDetail(String(mediaId), mediaTypeFromCard);
     },
-
     handlePlayMedia: () => {
         if (!currentOpenDetail || !currentOpenDetail.id) {
-            alert("Error: Media details not found to start playback."); return;
+            alert("Error: Media details not found to start playback."); 
+            return;
         }
         const { id: tmdbId, title: mediaTitle, name, type: mediaType } = currentOpenDetail;
         const finalTitle = mediaTitle || name; // Use 'name' as fallback (common for TV)
 
-        if (mediaType === 'movie') {
-            UIService.renderPlayer(mediaType, tmdbId, finalTitle);
-        } else if (mediaType === 'tv') {
+        // For TV shows, get selected season and episode
+        let season, episode;
+        if (mediaType === 'tv') {
             const seasonSelect = document.getElementById('season-select');
             const episodeSelect = document.getElementById('episode-select');
-            if (seasonSelect && episodeSelect && seasonSelect.value && episodeSelect.value) {
-                UIService.renderPlayer(mediaType, tmdbId, finalTitle, seasonSelect.value, episodeSelect.value);
-            } else if (currentOpenDetail.seasons && currentOpenDetail.seasons.some(s => s.season_number === 1 && s.episode_count > 0)) {
-                 UIService.renderPlayer(mediaType, tmdbId, finalTitle, '1', '1'); // Default to S1E1 if available
-            } else {
-                // If no seasons/episodes at all (e.g. a "TV Movie" classified as TV but has no seasons)
-                // we might try to play it like a movie if Mappletv supports it, or show an error.
-                // For now, assume Mappletv needs season/episode for 'tv' type.
-                alert("Please select a season and episode, or this series might not have episode data available for direct play.");
+            if (seasonSelect && episodeSelect) {
+                season = seasonSelect.value;
+                episode = episodeSelect.value;
+                if (!season || !episode) { // If dropdowns are there but no value selected (e.g. "No episodes listed")
+                    alert("Please ensure a valid season and episode are selected.");
+                    return;
+                }
+            } else { // No dropdowns, could be a TV movie or series without season data from TMDB
+                 // Try S1E1 as a last resort if Mappletv expects it, or play like a movie if that's an option
+                 // For now, we will rely on the dropdowns for explicit selection.
+                 // If Mappletv can handle /watch/tv/{tmdb_id} without S-E, that's another path.
+                 // Based on new URL, S-E is part of path, so they are needed.
+                if (currentOpenDetail.seasons && currentOpenDetail.seasons.some(s => s.season_number === 1 && s.episode_count > 0)) {
+                    season = '1'; episode = '1'; // Default if selectable UI missing but data exists
+                } else {
+                    alert("Season and episode information is unavailable for this TV show.");
+                    return;
+                }
             }
-        } else {
-            alert(`Playback for type "${mediaType}" is not currently supported directly.`);
         }
+        UIService.renderPlayer(mediaType, tmdbId, finalTitle, season, episode);
     }
 };
 
