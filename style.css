@@ -431,6 +431,12 @@ main {
     margin-right: 5px;
     margin-bottom: 5px;
 }
+.media-info .sources-list a {
+    text-decoration: none;
+}
+.media-info .sources-list a:hover span {
+    background-color: #444;
+}
 .play-button-container { margin-top: 25px; display: flex; gap: 15px; flex-wrap: wrap; }
 .play-button-container button {
     padding: 12px 25px;
@@ -497,6 +503,20 @@ footer {
     border-top: 1px solid #222;
     margin-top: 30px;
 }
+
+/* Helper classes */
+.loading-message, .empty-row-message, .empty-grid-message {
+    color: var(--secondary-text);
+    padding: 20px;
+    text-align: center;
+    font-style: italic;
+}
+.error-message { /* Already defined, but ensure consistency */
+    color: #ff4d4d;
+    font-size: 0.9em;
+    min-height: 1em;
+}
+
 
 /* Responsive adjustments */
 @media (min-width: 768px) {
