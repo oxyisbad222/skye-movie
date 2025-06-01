@@ -43,6 +43,7 @@ let currentWatchmodeRateLimits = {};
 let lastActiveListView = 'discover-view';
 let currentOpenDetail = null;
 let userFavorites = new Set();
+let currentRawSearchResults = []; // To store raw results for client-side filtering/sorting
 
 // --- DOM Elements ---
 const DOMElements = {
@@ -253,10 +254,10 @@ const UIService = {
         
         if(mediaItem.media_type && (mediaItem.media_type === 'movie' || mediaItem.media_type === 'tv')) {
             type = mediaItem.media_type;
-        } else if (mediaItem.type) {
+        } else if (mediaItem.type) { // Watchmode type
              type = (mediaItem.type === 'movie' || mediaItem.type === 'short_film') ? 'movie' : 
                     (mediaItem.type === 'tv_series' || mediaItem.type === 'tv_miniseries' || mediaItem.type === 'tv_special' || mediaItem.type.startsWith('tv')) ? 'tv' : 'unknown';
-        } else {
+        } else { // Infer if no explicit type
             if (isMovieLoose) type = 'movie';
             else if (isTvLoose) type = 'tv';
         }
@@ -336,7 +337,7 @@ const UIService = {
             div.addEventListener('click', () => {
                 DOMElements.searchInput.value = item.name;
                 UIService.clearAutocomplete();
-                AppLogic.triggerSearchOrFilter();
+                AppLogic.triggerSearchOrFilter(); // Now calls trigger which calls performSearch
             });
             DOMElements.autocompleteSuggestions.appendChild(div);
         });
@@ -736,7 +737,11 @@ const AppLogic = {
             UIService.clearAutocomplete(); 
             AppLogic.triggerSearchOrFilter(); 
         });
-        DOMElements.applyFiltersButton.addEventListener('click', AppLogic.triggerSearchOrFilter);
+        // "Apply Filters" button and changes to dropdowns now trigger client-side processing
+        // of existing search results.
+        DOMElements.applyFiltersButton.addEventListener('click', AppLogic.applyClientSideFiltersAndSort);
+        DOMElements.filterTypeSelect.addEventListener('change', AppLogic.applyClientSideFiltersAndSort);
+        DOMElements.sortBySelect.addEventListener('change', AppLogic.applyClientSideFiltersAndSort);
         
         document.addEventListener('click', (event) => {
             const searchControlsContainer = DOMElements.searchInput.closest('.search-controls-container');
@@ -890,9 +895,10 @@ const AppLogic = {
     },
     showSearch: () => {
         UIService.showView('search-view');
-        DOMElements.searchMessage.textContent = 'Type to search or apply filters to discover.';
+        DOMElements.searchMessage.textContent = 'Type to search for movies and TV shows.';
         DOMElements.searchResultsGrid.innerHTML = '';
         DOMElements.searchInput.value = '';
+        currentRawSearchResults = []; // Clear raw results when showing search page
         UIService.clearAutocomplete();
         DOMElements.filterTypeSelect.value = 'all';
         DOMElements.sortBySelect.value = 'popularity.desc';
@@ -912,117 +918,105 @@ const AppLogic = {
     },
     triggerSearchOrFilter: () => {
         const query = DOMElements.searchInput.value.trim();
-        const type = DOMElements.filterTypeSelect.value;
-        const sortBy = DOMElements.sortBySelect.value;
-        AppLogic.performSearch(query, type, sortBy);
+        // If there's a query, perform a new search. Filters will be applied client-side by applyClientSideFiltersAndSort.
+        // If no query, filters are for the current (empty) search result set, so do nothing or show message.
+        if (query) {
+            AppLogic.performSearch(query);
+        } else {
+            // If no query, and filters are changed, it should ideally operate on an empty set or do nothing
+            // until a search is made. Or, if they hit "Apply" with no query, clear results.
+            DOMElements.searchMessage.textContent = 'Please enter a search term to apply filters.';
+            currentRawSearchResults = []; // Clear any old results
+            AppLogic.applyClientSideFiltersAndSort(); // This will show "No results"
+        }
     },
-    performSearch: async (query, type = 'all', sortBy = 'popularity.desc') => {
+    performSearch: async (query) => { // Only takes query now for API fetch
         UIService.clearAutocomplete();
         DOMElements.searchResultsGrid.innerHTML = '';
         UIService.showView('search-view');
 
-        if (!query && type === 'all') {
-            DOMElements.searchMessage.textContent = 'Please enter a search term or select a filter type to discover.';
+        if (!query) {
+            DOMElements.searchMessage.textContent = 'Please enter a search term.';
+            currentRawSearchResults = [];
+            AppLogic.applyClientSideFiltersAndSort(); // Display "No results" through the common path
             return;
         }
         
-        const loadingMessage = query ? `Searching for "${query}"...` : `Discovering ${type === 'all' ? 'popular items' : type + 's'}...`;
-        DOMElements.searchMessage.textContent = loadingMessage;
+        DOMElements.searchMessage.textContent = `Searching for "${query}"...`;
 
         try {
-            let results = [];
-            let fetchParams = { page: 1 }; 
-            let endpoint = '';
-            let currentSortBy = sortBy; 
+            // Always use search/multi for keyword search initially, then filter client-side
+            const fetchParams = { query: query, page: 1 }; // Maybe fetch more pages later for better client sorting
+            const endpoint = 'search/multi';
 
-            if (query) {
-                fetchParams.query = query;
-                if (currentSortBy) fetchParams.sort_by = currentSortBy;
-
-                if (type === 'movie') endpoint = 'search/movie';
-                else if (type === 'tv') endpoint = 'search/tv';
-                else endpoint = 'search/multi';
-
-                console.log(`Keyword Search: endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
-                const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-                console.log("Keyword Search Response Data:", data);
-                results = (data.results || [])
-                    .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) 
-                    .map(item => ({ ...item, id: String(item.id)}));
+            console.log(`Keyword Search: endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
+            const data = await ApiService.fetchTMDB(endpoint, fetchParams);
+            console.log("Keyword Search Response Data:", data);
             
-            } else { // No query, using filters for "discover" mode
-                if (type === 'all') { // This case should ideally not be hit if the top check works
-                    DOMElements.searchMessage.textContent = 'Please select a specific type (Movies or TV Shows) to discover with filters.';
-                    return; 
-                }
-
-                let baseEndpoint = (type === 'movie') ? 'discover/movie' : 'discover/tv';
-                DOMElements.searchMessage.textContent = `Fetching popular ${type}s to sort...`;
-                console.log(`Client-side sort mode: Fetching base popular ${type}s. Selected sort: ${sortBy}`);
-                
-                let combinedResults = [];
-                try {
-                    // Fetch 2 pages (40 items) of popular content to sort client-side
-                    for (let i = 1; i <= 2; i++) { 
-                        const pageData = await ApiService.fetchTMDB(baseEndpoint, { page: i, sort_by: 'popularity.desc' });
-                        console.log(`Fetched page ${i} for client-side sort base:`, pageData);
-                        if (pageData && pageData.results) {
-                            combinedResults.push(...pageData.results);
-                        }
-                        if (!pageData.results || pageData.results.length < 20) break; 
-                    }
-                } catch (apiError) {
-                     console.error("Error fetching base data for client-side sort:", apiError);
-                     DOMElements.searchMessage.textContent = `Error fetching base data: ${apiError.message}`;
-                     return;
-                }
-
-                if (combinedResults.length === 0) {
-                    DOMElements.searchMessage.textContent = `No popular ${type}s found to apply your sort.`;
-                    results = [];
-                } else {
-                    results = combinedResults.map(item => ({ ...item, media_type: type, id: String(item.id) }));
-
-                    const [sortField, sortOrder] = sortBy.split('.');
-                    
-                    results.sort((a, b) => {
-                        let valA, valB;
-
-                        if (sortField === 'release_date') { // This uses the actual date fields from TMDB
-                            valA = new Date(type === 'movie' ? a.release_date : a.first_air_date || '1900-01-01').getTime();
-                            valB = new Date(type === 'movie' ? b.release_date : b.first_air_date || '1900-01-01').getTime();
-                        } else if (sortField === 'vote_average') {
-                            valA = parseFloat(a.vote_average || 0);
-                            valB = parseFloat(b.vote_average || 0);
-                        } else if (sortField === 'popularity') {
-                            valA = parseFloat(a.popularity || 0);
-                            valB = parseFloat(b.popularity || 0);
-                        } else { 
-                            return 0; // Should not happen with current dropdown
-                        }
-                        // Handle cases where dates might be invalid or missing resulting in NaN
-                        if (isNaN(valA)) valA = (sortOrder === 'asc' ? Infinity : -Infinity);
-                        if (isNaN(valB)) valB = (sortOrder === 'asc' ? Infinity : -Infinity);
-
-                        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-                        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-                        return 0;
-                    });
-                    console.log(`Client-side sorted ${results.length} ${type}s by ${sortBy}`);
-                }
-            }
+            // Store raw results, filter out persons, ensure ID is string
+            currentRawSearchResults = (data.results || [])
+                .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) 
+                .map(item => ({ ...item, id: String(item.id)}));
             
-            if (results.length > 0) {
-                DOMElements.searchMessage.textContent = query ? `Results for "${query}":` : `Showing ${type}s (client-sorted by ${sortBy}):`;
-            } else {
-                DOMElements.searchMessage.textContent = `No results found.`;
-            }
-            UIService.renderGrid(DOMElements.searchResultsGrid, results, null);
+            AppLogic.applyClientSideFiltersAndSort(); // Apply current filters/sort to new raw results
 
         } catch (error) {
-            console.error("Search/Filter failed:", error.message);
-            DOMElements.searchMessage.textContent = `Operation failed: ${error.message}. Please try again.`;
+            console.error("Search failed:", error.message);
+            DOMElements.searchMessage.textContent = `Search failed: ${error.message}. Please try again.`;
+            currentRawSearchResults = [];
+            AppLogic.applyClientSideFiltersAndSort(); // Display error state through common path
         }
+    },
+    applyClientSideFiltersAndSort: () => {
+        let processedResults = [...currentRawSearchResults]; // Start with a copy of raw results
+        const typeFilter = DOMElements.filterTypeSelect.value;
+        const sortBy = DOMElements.sortBySelect.value;
+
+        // 1. Apply Type Filter (client-side)
+        if (typeFilter !== 'all') {
+            processedResults = processedResults.filter(item => item.media_type === typeFilter);
+        }
+
+        // 2. Apply Sorting (client-side)
+        const [sortField, sortOrder] = sortBy.split('.');
+        processedResults.sort((a, b) => {
+            let valA, valB;
+            const mediaTypeA = a.media_type; // For date field determination
+            const mediaTypeB = b.media_type;
+
+            if (sortField === 'release_date') {
+                valA = new Date(mediaTypeA === 'movie' ? a.release_date : a.first_air_date || '1900-01-01').getTime();
+                valB = new Date(mediaTypeB === 'movie' ? b.release_date : b.first_air_date || '1900-01-01').getTime();
+            } else if (sortField === 'vote_average') {
+                valA = parseFloat(a.vote_average || 0);
+                valB = parseFloat(b.vote_average || 0);
+            } else if (sortField === 'popularity') {
+                valA = parseFloat(a.popularity || 0);
+                valB = parseFloat(b.popularity || 0);
+            } else {
+                return 0; 
+            }
+
+            if (isNaN(valA)) valA = (sortOrder === 'asc' ? Infinity : -Infinity);
+            if (isNaN(valB)) valB = (sortOrder === 'asc' ? Infinity : -Infinity);
+
+            if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+            if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+        
+        // Update message and render grid
+        if (currentRawSearchResults.length > 0 && processedResults.length === 0) {
+             DOMElements.searchMessage.textContent = `No results match your current filters for "${DOMElements.searchInput.value.trim()}".`;
+        } else if (processedResults.length > 0) {
+             DOMElements.searchMessage.textContent = `Showing results for "${DOMElements.searchInput.value.trim()}" (filtered & sorted):`;
+        } else if (DOMElements.searchInput.value.trim()) {
+             DOMElements.searchMessage.textContent = `No results found for "${DOMElements.searchInput.value.trim()}".`;
+        } else {
+            DOMElements.searchMessage.textContent = 'Type to search for movies and TV shows.';
+        }
+
+        UIService.renderGrid(DOMElements.searchResultsGrid, processedResults, null);
     },
     showFavorites: async () => {
         UIService.showView('favorites-view');
@@ -1069,7 +1063,7 @@ const AppLogic = {
             if (seasonSelect && episodeSelect && seasonSelect.value && episodeSelect.value) {
                 season = seasonSelect.value;
                 episode = episodeSelect.value;
-                if (!season || !episode || episodeSelect.disabled) { // Check if episode select is disabled (e.g. "No episodes listed")
+                if (!season || !episode || episodeSelect.disabled) {
                     alert("Please ensure a valid season and episode are selected.");
                     return;
                 }
