@@ -1,13 +1,13 @@
 /* style.css */
 :root {
-    --primary-bg: #101010; /* Even darker bg */
-    --secondary-bg: #181818; /* Slightly lighter for cards/sections */
-    --tertiary-bg: #282828; /* For inputs and some hover states */
+    --primary-bg: #101010;
+    --secondary-bg: #181818;
+    --tertiary-bg: #282828;
     --primary-text: #e5e5e5;
-    --secondary-text: #a0a0a0; /* For less important text */
-    --accent-color: #E50914; /* A more "streaming" red, or use original pink: #FF69B4; */
-    --accent-hover: #f70a18; /* Darker red on hover */
-    --special-accent: #FF69B4; /* Keeping pink for logo/special items if needed */
+    --secondary-text: #a0a0a0;
+    --accent-color: #FF69B4; /* Changed to Pink */
+    --accent-hover: #f055a2; /* Adjusted Pink hover */
+    --special-accent: #FF69B4; /* Main Pink for logo & special items */
     --font-body: 'Roboto', sans-serif;
     --font-logo: 'Cherry Bomb One', cursive;
     --card-border-radius: 8px;
@@ -35,7 +35,7 @@ body {
 .logo-title {
     font-family: var(--font-logo);
     font-size: clamp(2.5rem, 8vw, 4.5rem);
-    color: var(--special-accent); /* Pink for logo */
+    color: var(--special-accent);
     text-align: center;
     margin-bottom: 25px;
     letter-spacing: 1px;
@@ -44,8 +44,8 @@ body {
 .logo-title-small {
     font-family: var(--font-logo);
     font-size: clamp(1.5rem, 4vw, 2rem);
-    color: var(--special-accent); /* Pink for logo */
-    margin-right: auto; /* Pushes nav and user info to the right */
+    color: var(--special-accent);
+    margin-right: auto;
 }
 
 /* Fullscreen Sections for Gate & Auth */
@@ -88,7 +88,7 @@ body {
 .fullscreen-section input[type="password"]:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px var(--accent-color-translucent, rgba(229,9,20,0.3));
+    box-shadow: 0 0 0 2px rgba(255, 105, 180, 0.3); /* Pink shadow */
 }
 .fullscreen-section button {
     width: 100%;
@@ -109,7 +109,7 @@ body {
     color: #ff4d4d;
     font-size: 0.9em;
     margin-top: 10px;
-    min-height: 1em; /* Prevent layout shift */
+    min-height: 1em;
 }
 .auth-toggle {
     font-size: 0.9em;
@@ -125,20 +125,19 @@ body {
 }
 
 /* Main App Styling */
-.active-section { display: flex; } /* For Gate/Auth */
+.active-section { display: flex; }
 .hidden-section { display: none !important; }
-#main-app-section.active-section { /* Override for main app */
+#main-app-section.active-section {
     display: block;
     min-height: 100vh;
 }
-
 
 header {
     display: flex;
     align-items: center;
     padding: 0 var(--standard-padding);
     height: var(--header-height);
-    background-color: var(--primary-bg); /* Make header distinct or blend with a top shadow */
+    background-color: var(--primary-bg);
     border-bottom: 1px solid #222;
     position: sticky;
     top: 0;
@@ -146,7 +145,7 @@ header {
 }
 header nav {
     margin-left: 30px;
-    margin-right: auto; /* Pushes user-info to the far right */
+    margin-right: auto;
 }
 .nav-button {
     font-family: var(--font-body);
@@ -193,7 +192,7 @@ header nav {
 
 main {
     padding: 20px;
-    min-height: calc(100vh - var(--header-height) - 50px); /* 50px for footer */
+    min-height: calc(100vh - var(--header-height) - 50px);
 }
 
 .view { display: none; animation: fadeIn 0.3s ease-in-out; }
@@ -203,29 +202,72 @@ main {
 /* Discover Page Sections */
 .discover-section {
     margin-bottom: 40px;
+    position: relative; /* For arrow positioning */
 }
 .discover-section-title {
     font-size: 1.8rem;
     font-weight: bold;
     color: var(--primary-text);
     margin-bottom: 15px;
-    padding-left: var(--standard-padding); /* Align with grid padding if any */
+    padding-left: var(--standard-padding);
+}
+.discover-media-row-wrapper { /* New wrapper for row and arrows */
+    position: relative;
 }
 .discover-media-row {
     display: flex;
-    overflow-x: auto;
-    padding: 10px var(--standard-padding); /* Padding for scrollbar space and aesthetics */
+    overflow-x: auto; /* Will be hidden by CSS but JS needs it */
+    padding: 10px 0; /* Remove side padding, arrows will occupy that space */
+    margin: 0 var(--standard-padding); /* Overall padding for the row content */
     gap: 15px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--tertiary-bg) var(--secondary-bg);
+    scrollbar-width: none; /* Hide scrollbar for Firefox */
+    -ms-overflow-style: none;  /* Hide scrollbar for IE and Edge */
+    scroll-behavior: smooth; /* Smooth scrolling for JS changes */
 }
-.discover-media-row::-webkit-scrollbar { height: 8px; }
-.discover-media-row::-webkit-scrollbar-track { background: var(--secondary-bg); border-radius: 4px; }
-.discover-media-row::-webkit-scrollbar-thumb { background-color: var(--tertiary-bg); border-radius: 4px; }
-/* Individual cards in horizontal scroll need defined width */
+.discover-media-row::-webkit-scrollbar { display: none; /* Hide scrollbar for Chrome, Safari, Opera */ }
 .discover-media-row .media-card {
-    flex: 0 0 auto; /* Prevent shrinking/growing */
-    width: 180px; /* Or desired width for horizontally scrolled items */
+    flex: 0 0 auto;
+    width: 180px;
+}
+
+/* Discover Row Navigation Arrows */
+.discover-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(24, 24, 24, 0.7); /* Slightly transparent dark background */
+    color: var(--primary-text);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    line-height: 40px; /* Center icon */
+    text-align: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: background-color 0.2s ease, opacity 0.3s ease;
+    opacity: 0; /* Hidden by default, shown on hover of section or by JS */
+    display: flex; /* For icon centering */
+    align-items: center; /* For icon centering */
+    justify-content: center; /* For icon centering */
+}
+.discover-section:hover .discover-arrow { /* Show arrows on section hover */
+    opacity: 0.8;
+}
+.discover-arrow:hover {
+    background-color: rgba(40, 40, 40, 0.9);
+    opacity: 1;
+}
+.discover-arrow.prev-arrow {
+    left: 5px;
+}
+.discover-arrow.next-arrow {
+    right: 5px;
+}
+.discover-arrow.hidden-arrow { /* For JS to hide if no more scroll */
+    opacity: 0.2 !important; /* Still slightly visible but clearly disabled */
+    pointer-events: none;
 }
 
 
@@ -234,7 +276,7 @@ main {
     display: flex;
     margin-bottom: 20px;
     background-color: var(--secondary-bg);
-    border-radius: 25px; /* Pill shape */
+    border-radius: 25px;
     padding: 5px;
     max-width: 600px;
     margin-left: auto;
@@ -253,7 +295,7 @@ main {
     background-color: var(--accent-color);
     color: white;
     border: none;
-    border-radius: 50%; /* Circle */
+    border-radius: 50%;
     width: 40px;
     height: 40px;
     display: flex;
@@ -272,9 +314,9 @@ main {
     margin-top: 5px;
     max-height: 300px;
     overflow-y: auto;
-    position: absolute; /* Position relative to search bar or container */
-    width: calc(100% - 40px); /* Match search bar width, adjust as needed */
-    max-width: 580px; /* Align with search bar */
+    position: absolute;
+    width: calc(100% - 40px);
+    max-width: 580px;
     z-index: 100;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
@@ -300,7 +342,7 @@ main {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 20px;
-    padding: 0 var(--standard-padding); /* If discover row has padding, this might not be needed */
+    padding: 0 var(--standard-padding);
 }
 .media-card {
     background-color: var(--secondary-bg);
@@ -318,10 +360,10 @@ main {
 .media-card img {
     width: 100%;
     height: auto;
-    aspect-ratio: 2 / 3; /* Common poster aspect ratio */
+    aspect-ratio: 2 / 3;
     object-fit: cover;
     display: block;
-    border-bottom: 1px solid #333; /* Subtle separator */
+    border-bottom: 1px solid #333;
 }
 .media-card .card-content {
     padding: 10px;
@@ -344,7 +386,7 @@ main {
     top: 8px;
     right: 8px;
     background-color: rgba(0,0,0,0.75);
-    color: #FFD700; /* Gold */
+    color: #FFD700;
     padding: 3px 7px;
     font-size: 0.8em;
     border-radius: 4px;
@@ -360,7 +402,7 @@ main {
     border-radius: 50%;
     width: 32px;
     height: 32px;
-    font-size: 1.1em; /* Adjust for ♡/♥ symbol size */
+    font-size: 1.1em;
     line-height: 32px;
     text-align: center;
     cursor: pointer;
@@ -370,11 +412,11 @@ main {
     transform: scale(1.1);
 }
 .media-card .add-to-favorites.favorited {
-    color: var(--special-accent); /* Pink when favorited */
+    color: var(--special-accent);
 }
 
 /* Detail View */
-.view h2 { /* General h2 for Favorites etc. */
+.view h2 {
     font-size: 1.8rem;
     font-weight: bold;
     color: var(--primary-text);
@@ -412,8 +454,8 @@ main {
     align-self: center;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
-.media-info h3 { /* Title in detail view */
-    font-family: var(--font-body); /* Or keep logo font if preferred */
+.media-info h3 {
+    font-family: var(--font-body);
     font-size: clamp(1.8rem, 5vw, 2.8rem);
     font-weight: bold;
     color: var(--primary-text);
@@ -482,7 +524,7 @@ main {
 #player-view h3 { text-align: center; margin-bottom: 15px; font-size: 1.5rem; }
 #mappletv-player-container {
     width: 100%;
-    max-width: 1000px; /* Control player width */
+    max-width: 1000px;
     aspect-ratio: 16 / 9;
     position: relative;
     background-color: #000;
@@ -510,8 +552,9 @@ footer {
     padding: 20px;
     text-align: center;
     font-style: italic;
+    width: 100%; /* Ensure it takes full width in flex containers */
 }
-.error-message { /* Already defined, but ensure consistency */
+.error-message {
     color: #ff4d4d;
     font-size: 0.9em;
     min-height: 1em;
@@ -525,17 +568,17 @@ footer {
         align-items: flex-start;
     }
     #media-detail-content img.detail-poster {
-        align-self: flex-start; /* Keep it from stretching if info is short */
-        flex-shrink: 0; /* Prevent shrinking */
+        align-self: flex-start;
+        flex-shrink: 0;
     }
     .media-info { flex: 1; }
-    .discover-media-row .media-card { width: 200px; } /* Wider cards on larger screens for rows */
+    .discover-media-row .media-card { width: 200px; }
     .media-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 }
 
 @media (max-width: 600px) {
     header {
-        height: auto; /* Allow wrapping */
+        height: auto;
         flex-direction: column;
         align-items: flex-start;
         padding: 10px var(--standard-padding);
@@ -552,4 +595,14 @@ footer {
     .form-container { padding: 20px; }
     .play-button-container { flex-direction: column; }
     .play-button-container button { width: 100%; }
+
+    .discover-arrow { /* Make arrows smaller on mobile */
+        width: 30px;
+        height: 30px;
+        font-size: 16px;
+        line-height: 30px;
+    }
+    .discover-arrow.prev-arrow { left: 2px; }
+    .discover-arrow.next-arrow { right: 2px; }
+    .discover-media-row { margin: 0 5px; } /* Less margin for row content on mobile */
 }
