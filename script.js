@@ -106,7 +106,7 @@ DOMElements.navButtons = [DOMElements.navDiscover, DOMElements.navSearch, DOMEle
 // --- API Cache ---
 const ApiCache = {
     CACHE_PREFIX: 'skyeMovieCache_v3_',
-    DEFAULT_TTL: 3600 * 1000 * 3, // 3 hours
+    DEFAULT_TTL: 3600 * 1000 * 3, 
 
     get: (key) => {
         const itemStr = localStorage.getItem(ApiCache.CACHE_PREFIX + key);
@@ -235,8 +235,8 @@ const UIService = {
         window.scrollTo(0,0);
     },
     createMediaCard: (mediaItem, isFavoriteOverride = null) => {
-        const isMovieLoose = mediaItem.title && mediaItem.release_date; // Looser check for movie-like structure
-        const isTvLoose = mediaItem.name && mediaItem.first_air_date; // Looser check for TV-like structure
+        const isMovieLoose = mediaItem.title && mediaItem.release_date;
+        const isTvLoose = mediaItem.name && mediaItem.first_air_date;
 
         let id = String(mediaItem.id);
         let title = mediaItem.title || mediaItem.name || "Untitled";
@@ -245,15 +245,14 @@ const UIService = {
         let year = mediaItem.release_date ? mediaItem.release_date.substring(0,4) : (mediaItem.first_air_date ? mediaItem.first_air_date.substring(0,4) : '');
         
         let type = 'unknown';
-        if (mediaItem.tmdb_id) id = String(mediaItem.tmdb_id); // Prefer tmdb_id if from Watchmode
+        if (mediaItem.tmdb_id) id = String(mediaItem.tmdb_id);
         
-        // Determine type more reliably
-        if(mediaItem.media_type && (mediaItem.media_type === 'movie' || mediaItem.media_type === 'tv')) { // Explicit TMDB media_type
+        if(mediaItem.media_type && (mediaItem.media_type === 'movie' || mediaItem.media_type === 'tv')) {
             type = mediaItem.media_type;
-        } else if (mediaItem.type) { // Watchmode 'type'
+        } else if (mediaItem.type) {
              type = (mediaItem.type === 'movie' || mediaItem.type === 'short_film') ? 'movie' : 
                     (mediaItem.type === 'tv_series' || mediaItem.type === 'tv_miniseries' || mediaItem.type === 'tv_special' || mediaItem.type.startsWith('tv')) ? 'tv' : 'unknown';
-        } else { // Infer if no explicit type
+        } else {
             if (isMovieLoose) type = 'movie';
             else if (isTvLoose) type = 'tv';
         }
@@ -333,17 +332,16 @@ const UIService = {
             div.addEventListener('click', () => {
                 DOMElements.searchInput.value = item.name;
                 UIService.clearAutocomplete();
-                AppLogic.triggerSearchOrFilter(); // Use trigger function
+                AppLogic.triggerSearchOrFilter();
             });
             DOMElements.autocompleteSuggestions.appendChild(div);
         });
         DOMElements.autocompleteSuggestions.style.display = 'block';
-        // Position autocomplete
         const searchInputRect = DOMElements.searchInput.getBoundingClientRect();
         const searchControlsRect = DOMElements.searchInput.closest('.search-controls-container').getBoundingClientRect();
         
         DOMElements.autocompleteSuggestions.style.left = `${searchInputRect.left - searchControlsRect.left}px`;
-        DOMElements.autocompleteSuggestions.style.top = `${searchInputRect.bottom - searchControlsRect.top + 5}px`; // 5px margin
+        DOMElements.autocompleteSuggestions.style.top = `${searchInputRect.bottom - searchControlsRect.top + 5}px`;
         DOMElements.autocompleteSuggestions.style.width = `${searchInputRect.width}px`;
     },
     renderMediaDetail: async (mediaId, mediaType) => {
@@ -508,7 +506,7 @@ const AuthService = {
         if (code === CONFIG_SKYE_MOVIE_ACCESS_CODE) {
             DOMElements.accessError.textContent = '';
             localStorage.setItem('skyeMovieAccessGranted', 'true');
-            AuthService.observeAuthState(); // Re-check auth state
+            AuthService.observeAuthState();
         } else {
             DOMElements.accessError.textContent = 'Invalid access code.';
             localStorage.removeItem('skyeMovieAccessGranted');
@@ -518,10 +516,9 @@ const AuthService = {
         const email = DOMElements.registerEmailInput.value;
         const password = DOMElements.registerPasswordInput.value;
         DOMElements.registerError.textContent = '';
-        DOMElements.loginError.textContent = ''; // Clear other form error
+        DOMElements.loginError.textContent = '';
         try {
             await fbAuth.createUserWithEmailAndPassword(email, password);
-            // onAuthStateChanged will handle UI changes
         } catch (error) {
             DOMElements.registerError.textContent = error.message;
         }
@@ -530,10 +527,9 @@ const AuthService = {
         const email = DOMElements.loginEmailInput.value;
         const password = DOMElements.loginPasswordInput.value;
         DOMElements.loginError.textContent = '';
-        DOMElements.registerError.textContent = ''; // Clear other form error
+        DOMElements.registerError.textContent = '';
         try {
             await fbAuth.signInWithEmailAndPassword(email, password);
-            // onAuthStateChanged will handle UI changes
         } catch (error) {
             DOMElements.loginError.textContent = error.message;
         }
@@ -543,19 +539,17 @@ const AuthService = {
         DOMElements.registerError.textContent = '';
         try {
             await fbAuth.signInWithPopup(googleAuthProvider);
-            // onAuthStateChanged will handle UI changes
         } catch (error) {
             console.error("Google Sign-In Error:", error);
             const errorMessage = `Google Sign-In failed: ${error.code === 'auth/popup-closed-by-user' ? 'Popup closed before sign-in completed.' : error.message}`;
             DOMElements.loginError.textContent = errorMessage;
-            DOMElements.registerError.textContent = errorMessage; // Show on both forms for visibility
+            DOMElements.registerError.textContent = errorMessage;
         }
     },
     handleLogout: async () => {
         try {
             await fbAuth.signOut();
-            localStorage.removeItem('skyeMovieAccessGranted'); // Revoke site access on logout
-            // onAuthStateChanged will handle UI changes (show access gate)
+            localStorage.removeItem('skyeMovieAccessGranted');
         } catch (error) {
             console.error("Logout error:", error);
         }
@@ -569,7 +563,6 @@ const AuthService = {
                 DOMElements.userEmailDisplay.textContent = user.email;
                 await FavoritesService.loadFavorites();
                 UIService.showSection(DOMElements.mainAppSection);
-                // If discover view is empty, or it was the last active, or no last active, show discover.
                 if (!lastActiveListView || lastActiveListView === 'discover-view' || DOMElements.discoverView.innerHTML.trim() === '') {
                      AppLogic.showDiscover();
                 } else {
@@ -577,25 +570,24 @@ const AuthService = {
                 }
             } else {
                 currentUser = null;
-                userFavorites.clear(); // Clear local cache of favorites
+                userFavorites.clear();
                 DOMElements.userEmailDisplay.textContent = '';
                 
-                if (!accessGranted && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) { // Config loaded, but no access
+                if (!accessGranted && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) {
                      UIService.showSection(DOMElements.accessGateSection);
                      DOMElements.accessError.textContent = ''; 
                      DOMElements.submitAccessCodeButton.disabled = false;
-                } else if (accessGranted && !user && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) { // Access granted, but no user (e.g. after logout, then manual nav or failed auth)
+                } else if (accessGranted && !user && CONFIG_SKYE_MOVIE_ACCESS_CODE !== null) {
                     UIService.showSection(DOMElements.authSection);
-                } else if (CONFIG_SKYE_MOVIE_ACCESS_CODE === null) { // Config still loading
+                } else if (CONFIG_SKYE_MOVIE_ACCESS_CODE === null) {
                     UIService.showSection(DOMElements.accessGateSection);
                     DOMElements.accessError.textContent = 'Loading site configuration...';
                     DOMElements.submitAccessCodeButton.disabled = true;
-                } else { // Default: if logged out, show access gate again
+                } else { 
                     UIService.showSection(DOMElements.accessGateSection);
                     DOMElements.accessError.textContent = '';
                     DOMElements.submitAccessCodeButton.disabled = false;
                 }
-                 // Reset auth forms
                  DOMElements.loginForm.style.display = 'block';
                  DOMElements.registerForm.style.display = 'none';
                  DOMElements.loginEmailInput.value = ''; DOMElements.loginPasswordInput.value = '';
@@ -616,9 +608,8 @@ const FavoritesService = {
             snapshot.forEach(doc => userFavorites.add(doc.id));
             
             if (document.getElementById('favorites-view').classList.contains('active-view')) {
-                AppLogic.showFavorites(); // Refresh if currently on favorites page
+                AppLogic.showFavorites();
             }
-            // Refresh fav buttons on any currently displayed media cards
             document.querySelectorAll('.media-card .add-to-favorites').forEach(btn => {
                 const cardId = btn.dataset.id;
                 if (userFavorites.has(cardId)) {
@@ -649,14 +640,13 @@ const FavoritesService = {
                     buttonElement.title = 'Add to favorites';
                 }
             } else {
-                // Ensure all necessary fields are present in mediaDetails for Firestore
                 const favoriteData = {
                     title: mediaDetails.title || 'N/A',
                     type: mediaDetails.type || 'unknown',
                     poster_path: mediaDetails.poster_path || null,
                     vote_average: mediaDetails.vote_average || null,
                     year: mediaDetails.year || null,
-                    tmdb_id: mediaId, // Explicitly store the TMDB ID
+                    tmdb_id: mediaId,
                     addedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 await favRef.set(favoriteData);
@@ -667,12 +657,11 @@ const FavoritesService = {
                     buttonElement.title = 'Remove from favorites';
                 }
             }
-            // If on favorites view and an item is removed, re-render
             if (isCurrentlyFavorited && document.getElementById('favorites-view').classList.contains('active-view')) {
                 AppLogic.showFavorites();
             }
         } catch (error) {
-            console.error("Error toggling favorite:", error.message, error); // Log the full error object
+            console.error("Error toggling favorite:", error.message, error);
             alert(`Error updating favorites: ${error.message}. Check console for details.`);
         }
     },
@@ -681,7 +670,7 @@ const FavoritesService = {
         const favoriteItemsData = [];
         try {
             const snapshot = await fbFirestore.collection('users').doc(currentUser.uid).collection('favorites').orderBy('addedAt', 'desc').get();
-            snapshot.forEach(doc => favoriteItemsData.push({ id: doc.id, ...doc.data() })); // doc.id is the TMDB_ID
+            snapshot.forEach(doc => favoriteItemsData.push({ id: doc.id, ...doc.data() }));
         } catch (error) { 
             console.error("Error fetching favorite details:", error.message); 
         }
@@ -695,21 +684,19 @@ const AppLogic = {
         DOMElements.currentYearSpan.textContent = new Date().getFullYear();
         
         const configLoaded = await AuthService.fetchAndSetAccessCode(); 
-        AuthService.observeAuthState(); // Called regardless of config load to handle UI display
+        AuthService.observeAuthState();
 
         if (!configLoaded) {
-            // AuthService.fetchAndSetAccessCode already handles UI for error state
             return; 
         }
         
-        // Standard Event Listeners
         DOMElements.submitAccessCodeButton.addEventListener('click', AuthService.handleAccessCode);
         DOMElements.accessCodeInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') AuthService.handleAccessCode(); });
         
         DOMElements.registerButton.addEventListener('click', AuthService.handleRegister);
         DOMElements.loginButton.addEventListener('click', AuthService.handleLogin);
         DOMElements.googleSignInButton.addEventListener('click', AuthService.handleGoogleSignIn);
-        DOMElements.googleSignUpButton.addEventListener('click', AuthService.handleGoogleSignIn); // Use same handler
+        DOMElements.googleSignUpButton.addEventListener('click', AuthService.handleGoogleSignIn);
         DOMElements.logoutButton.addEventListener('click', AuthService.handleLogout);
 
         DOMElements.showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); DOMElements.loginForm.style.display = 'none'; DOMElements.registerForm.style.display = 'block'; DOMElements.loginError.textContent=''; DOMElements.registerError.textContent='';});
@@ -721,11 +708,10 @@ const AppLogic = {
 
         DOMElements.backToListButton.addEventListener('click', () => UIService.showView(lastActiveListView || 'discover-view'));
         DOMElements.closePlayerButton.addEventListener('click', () => { 
-            DOMElements.mappletvPlayerContainer.innerHTML = ''; // Important to stop video
-            UIService.showView('detail-view'); // Assumes currentOpenDetail is populated
+            DOMElements.mappletvPlayerContainer.innerHTML = '';
+            UIService.showView('detail-view');
         });
         
-        // Search and Filter Listeners
         let searchDebounceTimer;
         DOMElements.searchInput.addEventListener('input', () => {
             clearTimeout(searchDebounceTimer); 
@@ -748,7 +734,6 @@ const AppLogic = {
         });
         DOMElements.applyFiltersButton.addEventListener('click', AppLogic.triggerSearchOrFilter);
         
-        // Hide autocomplete if clicked outside the search controls container or suggestions list
         document.addEventListener('click', (event) => {
             const searchControlsContainer = DOMElements.searchInput.closest('.search-controls-container');
             if (searchControlsContainer && !searchControlsContainer.contains(event.target) && 
@@ -758,27 +743,24 @@ const AppLogic = {
         });
     },
 
-    featuredNetworks: [ // Using Watchmode Source IDs
+    featuredNetworks: [
         { name: 'Netflix', id: 203 },
-        { name: 'Disney+', id: 372 }, // Common ID for Disney+
-        { name: 'Max', id: 387 },     // Formerly HBO Max
-        { name: 'Prime Video', id: 26 } // Amazon Prime Video
+        { name: 'Disney+', id: 372 },
+        { name: 'Max', id: 387 },
+        { name: 'Prime Video', id: 26 }
     ],
 
     discoverSectionsConfig: [
-        // source: 'tmdb' or 'watchmode'
         { title: 'Trending Movies This Week', endpoint: 'trending/movie/week', type: 'movie', source: 'tmdb' },
         { title: 'Popular TV Shows', endpoint: 'tv/popular', type: 'tv', source: 'tmdb' },
         { title: 'Top Rated Movies', endpoint: 'movie/top_rated', type: 'movie', source: 'tmdb' },
         { title: 'Trending TV Shows This Week', endpoint: 'trending/tv/week', type: 'tv', source: 'tmdb' },
-        // "By Network" sections will be added after these TMDB ones, then "Upcoming" at the very end.
     ],
     upcomingMoviesConfig: { title: 'Upcoming Movies', endpoint: 'movie/upcoming', type: 'movie', source: 'tmdb' },
 
-
     showDiscover: async () => {
         UIService.showView('discover-view');
-        DOMElements.discoverView.innerHTML = ''; // CRITICAL: Clear previous content ONCE
+        DOMElements.discoverView.innerHTML = '';
 
         const tmdbSections = AppLogic.discoverSectionsConfig.filter(s => s.source === 'tmdb');
         for (const sectionConfig of tmdbSections) {
@@ -792,7 +774,7 @@ const AppLogic = {
             await AppLogic.renderDiscoverSection(`Popular on ${network.name}`, async () => {
                 const data = await ApiService.fetchWatchmode('list-titles', {
                     source_ids: network.id,
-                    sort_by: 'popularity_desc', // Or 'weighted_average_score_desc' for ratings
+                    sort_by: 'popularity_desc',
                     types: 'movie,tv_series', 
                     limit: 20 
                 });
@@ -809,7 +791,6 @@ const AppLogic = {
             });
         }
 
-        // Add Upcoming Movies at the very end
         await AppLogic.renderDiscoverSection(AppLogic.upcomingMoviesConfig.title, async () => {
             const data = await ApiService.fetchTMDB(AppLogic.upcomingMoviesConfig.endpoint, { page: 1 });
             return data.results.map(item => ({ ...item, media_type: item.media_type || AppLogic.upcomingMoviesConfig.type }));
@@ -836,7 +817,6 @@ const AppLogic = {
         const nextArrow = document.createElement('button');
         nextArrow.className = 'discover-arrow next-arrow'; nextArrow.innerHTML = '&#10095;'; nextArrow.title = "Next";
         
-        // Initially hide arrows until content loads and scrollability is known
         prevArrow.classList.add('hidden-arrow');
         nextArrow.classList.add('hidden-arrow');
 
@@ -844,46 +824,37 @@ const AppLogic = {
         sectionDiv.appendChild(rowWrapper);
         DOMElements.discoverView.appendChild(sectionDiv);
 
-        const scrollAmount = () => rowDiv.clientWidth * 0.8; // Scroll by 80% of visible width
+        const scrollAmount = () => rowDiv.clientWidth * 0.8;
         prevArrow.addEventListener('click', () => { rowDiv.scrollLeft -= scrollAmount(); });
         nextArrow.addEventListener('click', () => { rowDiv.scrollLeft += scrollAmount(); });
 
         const updateArrowVisibility = () => {
-            // Using a small tolerance (e.g., 1px or 5px) for scroll position checks can be helpful
             const tolerance = 5; 
             const atStart = rowDiv.scrollLeft <= tolerance;
-            // Check if scrollable content width is greater than visible client width
             const isScrollable = rowDiv.scrollWidth > rowDiv.clientWidth + tolerance;
             const atEnd = rowDiv.scrollLeft + rowDiv.clientWidth >= rowDiv.scrollWidth - tolerance;
 
             if (!isScrollable) {
-                prevArrow.classList.add('hidden-arrow');
-                prevArrow.classList.remove('visible-arrow');
-                nextArrow.classList.add('hidden-arrow');
-                nextArrow.classList.remove('visible-arrow');
+                prevArrow.classList.add('hidden-arrow'); prevArrow.classList.remove('visible-arrow');
+                nextArrow.classList.add('hidden-arrow'); nextArrow.classList.remove('visible-arrow');
             } else {
-                prevArrow.classList.toggle('hidden-arrow', atStart);
-                prevArrow.classList.toggle('visible-arrow', !atStart);
-                nextArrow.classList.toggle('hidden-arrow', atEnd);
-                nextArrow.classList.toggle('visible-arrow', !atEnd);
+                prevArrow.classList.toggle('hidden-arrow', atStart); prevArrow.classList.toggle('visible-arrow', !atStart);
+                nextArrow.classList.toggle('hidden-arrow', atEnd); nextArrow.classList.toggle('visible-arrow', !atEnd);
             }
         };
         
         const observer = new ResizeObserver(updateArrowVisibility); 
-        observer.observe(rowDiv); // Observe for resize changes
-        // Also listen for scroll events on the row itself to update arrows during manual scroll (e.g., touch)
+        observer.observe(rowDiv);
         rowDiv.addEventListener('scroll', updateArrowVisibility, { passive: true });
 
         try {
             const items = await fetchDataFunction();
             UIService.renderMediaRow(rowDiv, items);
-            // Call updateArrowVisibility after items are rendered and rowDiv has its final scrollWidth
-            // Using a small timeout can help ensure the DOM has updated.
             setTimeout(updateArrowVisibility, 100); 
         } catch (error) {
             console.error(`Error loading section "${title}":`, error.message);
             rowDiv.innerHTML = `<p class="error-message">Could not load this section.</p>`;
-            updateArrowVisibility(); // Ensure arrows are hidden if loading fails
+            updateArrowVisibility();
         }
     },
     
@@ -893,7 +864,7 @@ const AppLogic = {
         if (!seasonSelect || !episodeSelect) return;
 
         const populateEpisodes = (episodeCount) => {
-            episodeSelect.innerHTML = ''; // Clear previous episodes
+            episodeSelect.innerHTML = '';
             if (episodeCount > 0) {
                 for (let i = 1; i <= episodeCount; i++) {
                     episodeSelect.add(new Option(`Episode ${i}`, i));
@@ -904,13 +875,10 @@ const AppLogic = {
                  episodeSelect.disabled = true;
             }
         };
-
-        // Initial population based on the first selected season
         const initialSeasonOption = seasonSelect.options[seasonSelect.selectedIndex];
         if (initialSeasonOption) {
             populateEpisodes(parseInt(initialSeasonOption.dataset.episodes));
         }
-
         seasonSelect.addEventListener('change', (e) => {
             const selectedOption = e.target.options[e.target.selectedIndex];
             populateEpisodes(parseInt(selectedOption.dataset.episodes));
@@ -919,10 +887,9 @@ const AppLogic = {
     showSearch: () => {
         UIService.showView('search-view');
         DOMElements.searchMessage.textContent = 'Type to search or apply filters to discover.';
-        DOMElements.searchResultsGrid.innerHTML = ''; // Clear previous results
-        DOMElements.searchInput.value = ''; // Clear search input
+        DOMElements.searchResultsGrid.innerHTML = '';
+        DOMElements.searchInput.value = '';
         UIService.clearAutocomplete();
-        // Reset filters to default
         DOMElements.filterTypeSelect.value = 'all';
         DOMElements.sortBySelect.value = 'popularity.desc';
     },
@@ -932,12 +899,11 @@ const AppLogic = {
             return; 
         }
         try {
-            // Using Watchmode for autocomplete as it's generally good for titles
-            const data = await ApiService.fetchWatchmode('autocomplete-search', { search_value: query, search_type: 2 }); // search_type 2 for titles
+            const data = await ApiService.fetchWatchmode('autocomplete-search', { search_value: query, search_type: 2 });
              UIService.renderAutocompleteSuggestions(data && data.results ? data.results : []);
         } catch (error) {
             console.warn("Autocomplete search failed:", error.message);
-            UIService.renderAutocompleteSuggestions([]); // Clear on error
+            UIService.renderAutocompleteSuggestions([]);
         }
     },
     triggerSearchOrFilter: () => {
@@ -961,28 +927,41 @@ const AppLogic = {
 
         try {
             let results = [];
-            let fetchParams = { page: 1, sort_by: sortBy };
+            let fetchParams = { page: 1 }; // Base params
             let endpoint = '';
+            let currentSortBy = sortBy; // Use a mutable variable for sortBy
 
             if (query) { // Keyword search
                 fetchParams.query = query;
+                // Note: TMDB's /search endpoints don't robustly support all sort_by options like /discover does.
+                // Relevance is default. For simplicity, we might not pass sortBy to /search or only pass compatible ones.
+                // For now, we'll pass it and TMDB will use it if compatible or ignore it.
+                if (sortBy) fetchParams.sort_by = sortBy; // Add if a sort is selected
+
                 if (type === 'movie') endpoint = 'search/movie';
                 else if (type === 'tv') endpoint = 'search/tv';
                 else endpoint = 'search/multi';
 
                 const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-                results = data.results.filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path)
-                                   .map(item => ({ ...item, id: String(item.id)}));
+                results = data.results
+                    .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) // Filter out persons from multi-search
+                    .map(item => ({ ...item, id: String(item.id)}));
             
             } else { // No query, using filters for discovery (TMDB Discover)
-                if (type === 'movie') endpoint = 'discover/movie';
-                else if (type === 'tv') endpoint = 'discover/tv';
-                else { 
+                if (type === 'movie') {
+                    endpoint = 'discover/movie';
+                    if (sortBy === 'release_date.desc') currentSortBy = 'primary_release_date.desc';
+                    else if (sortBy === 'release_date.asc') currentSortBy = 'primary_release_date.asc';
+                } else if (type === 'tv') {
+                    endpoint = 'discover/tv';
+                    if (sortBy === 'release_date.desc') currentSortBy = 'first_air_date.desc';
+                    else if (sortBy === 'release_date.asc') currentSortBy = 'first_air_date.asc';
+                } else { 
                     DOMElements.searchMessage.textContent = 'Please select a specific type (Movies or TV Shows) to discover with filters.';
-                    return; // Don't proceed if 'all' types and no query
+                    return; 
                 }
+                fetchParams.sort_by = currentSortBy; // Set the (potentially adjusted) sort_by
                 const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-                // Ensure media_type is correctly set for discover results
                 results = data.results.map(item => ({ ...item, media_type: type, id: String(item.id) }));
             }
             
@@ -1011,11 +990,11 @@ const AppLogic = {
             return;
         }
         const mappedFavorites = favoriteItemsData.map(fav => ({
-            id: fav.tmdb_id || fav.id, // Use tmdb_id as primary if available from stored data
+            id: fav.tmdb_id || fav.id,
             title: fav.title,
             poster_path: fav.poster_path,
             vote_average: fav.vote_average,
-            media_type: fav.type, // 'movie' or 'tv'
+            media_type: fav.type,
             year: fav.year
         }));
         UIService.renderGrid(DOMElements.favoritesGrid, mappedFavorites, null, "You haven't favorited anything yet.");
@@ -1030,35 +1009,24 @@ const AppLogic = {
     },
     handlePlayMedia: () => {
         if (!currentOpenDetail || !currentOpenDetail.id) {
-            alert("Error: Media details not found to start playback."); 
+            alert("Error: Media details not loaded."); 
             return;
         }
         const { id: tmdbId, title: mediaTitle, name, type: mediaType } = currentOpenDetail;
-        const finalTitle = mediaTitle || name; // Use 'name' as fallback (common for TV)
+        const finalTitle = mediaTitle || name;
 
-        // For TV shows, get selected season and episode
         let season, episode;
         if (mediaType === 'tv') {
             const seasonSelect = document.getElementById('season-select');
             const episodeSelect = document.getElementById('episode-select');
-            if (seasonSelect && episodeSelect) {
+            if (seasonSelect && episodeSelect && seasonSelect.value && episodeSelect.value) {
                 season = seasonSelect.value;
                 episode = episodeSelect.value;
-                if (!season || !episode) { // If dropdowns are there but no value selected (e.g. "No episodes listed")
-                    alert("Please ensure a valid season and episode are selected.");
-                    return;
-                }
-            } else { // No dropdowns, could be a TV movie or series without season data from TMDB
-                 // Try S1E1 as a last resort if Mappletv expects it, or play like a movie if that's an option
-                 // For now, we will rely on the dropdowns for explicit selection.
-                 // If Mappletv can handle /watch/tv/{tmdb_id} without S-E, that's another path.
-                 // Based on new URL, S-E is part of path, so they are needed.
-                if (currentOpenDetail.seasons && currentOpenDetail.seasons.some(s => s.season_number === 1 && s.episode_count > 0)) {
-                    season = '1'; episode = '1'; // Default if selectable UI missing but data exists
-                } else {
-                    alert("Season and episode information is unavailable for this TV show.");
-                    return;
-                }
+            } else if (currentOpenDetail.seasons && currentOpenDetail.seasons.some(s => s.season_number === 1 && s.episode_count > 0)) {
+                season = '1'; episode = '1';
+            } else {
+                alert("Season and episode information is unavailable for this TV show.");
+                return;
             }
         }
         UIService.renderPlayer(mediaType, tmdbId, finalTitle, season, episode);
