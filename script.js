@@ -43,7 +43,7 @@ let currentWatchmodeRateLimits = {};
 let lastActiveListView = 'discover-view';
 let currentOpenDetail = null;
 let userFavorites = new Set();
-let currentRawSearchResults = []; // To store raw results for client-side filtering/sorting
+let currentRawSearchResults = []; // Stores results from the last API keyword search
 
 // --- DOM Elements ---
 const DOMElements = {
@@ -254,10 +254,10 @@ const UIService = {
         
         if(mediaItem.media_type && (mediaItem.media_type === 'movie' || mediaItem.media_type === 'tv')) {
             type = mediaItem.media_type;
-        } else if (mediaItem.type) { // Watchmode type
+        } else if (mediaItem.type) {
              type = (mediaItem.type === 'movie' || mediaItem.type === 'short_film') ? 'movie' : 
                     (mediaItem.type === 'tv_series' || mediaItem.type === 'tv_miniseries' || mediaItem.type === 'tv_special' || mediaItem.type.startsWith('tv')) ? 'tv' : 'unknown';
-        } else { // Infer if no explicit type
+        } else {
             if (isMovieLoose) type = 'movie';
             else if (isTvLoose) type = 'tv';
         }
@@ -337,7 +337,7 @@ const UIService = {
             div.addEventListener('click', () => {
                 DOMElements.searchInput.value = item.name;
                 UIService.clearAutocomplete();
-                AppLogic.triggerSearchOrFilter(); // Now calls trigger which calls performSearch
+                AppLogic.triggerSearchOrFilter();
             });
             DOMElements.autocompleteSuggestions.appendChild(div);
         });
@@ -737,8 +737,7 @@ const AppLogic = {
             UIService.clearAutocomplete(); 
             AppLogic.triggerSearchOrFilter(); 
         });
-        // "Apply Filters" button and changes to dropdowns now trigger client-side processing
-        // of existing search results.
+        
         DOMElements.applyFiltersButton.addEventListener('click', AppLogic.applyClientSideFiltersAndSort);
         DOMElements.filterTypeSelect.addEventListener('change', AppLogic.applyClientSideFiltersAndSort);
         DOMElements.sortBySelect.addEventListener('change', AppLogic.applyClientSideFiltersAndSort);
@@ -898,10 +897,10 @@ const AppLogic = {
         DOMElements.searchMessage.textContent = 'Type to search for movies and TV shows.';
         DOMElements.searchResultsGrid.innerHTML = '';
         DOMElements.searchInput.value = '';
-        currentRawSearchResults = []; // Clear raw results when showing search page
+        currentRawSearchResults = []; 
         UIService.clearAutocomplete();
         DOMElements.filterTypeSelect.value = 'all';
-        DOMElements.sortBySelect.value = 'popularity.desc';
+        DOMElements.sortBySelect.value = 'relevance'; // Default to relevance
     },
     performAutocompleteSearch: async (query) => {
         if (query.length < 3) { 
@@ -918,103 +917,120 @@ const AppLogic = {
     },
     triggerSearchOrFilter: () => {
         const query = DOMElements.searchInput.value.trim();
-        // If there's a query, perform a new search. Filters will be applied client-side by applyClientSideFiltersAndSort.
-        // If no query, filters are for the current (empty) search result set, so do nothing or show message.
         if (query) {
             AppLogic.performSearch(query);
         } else {
-            // If no query, and filters are changed, it should ideally operate on an empty set or do nothing
-            // until a search is made. Or, if they hit "Apply" with no query, clear results.
-            DOMElements.searchMessage.textContent = 'Please enter a search term to apply filters.';
-            currentRawSearchResults = []; // Clear any old results
-            AppLogic.applyClientSideFiltersAndSort(); // This will show "No results"
+            // If no query, "Apply Filters" button will operate on empty currentRawSearchResults
+            // or we can simply show a message.
+            DOMElements.searchMessage.textContent = 'Please enter a search term to see results.';
+            currentRawSearchResults = [];
+            AppLogic.applyClientSideFiltersAndSort(); // This will effectively show "No results"
         }
     },
-    performSearch: async (query) => { // Only takes query now for API fetch
+    performSearch: async (query) => {
         UIService.clearAutocomplete();
-        DOMElements.searchResultsGrid.innerHTML = '';
+        DOMElements.searchResultsGrid.innerHTML = ''; // Clear previous grid for new search
         UIService.showView('search-view');
 
         if (!query) {
             DOMElements.searchMessage.textContent = 'Please enter a search term.';
             currentRawSearchResults = [];
-            AppLogic.applyClientSideFiltersAndSort(); // Display "No results" through the common path
+            AppLogic.applyClientSideFiltersAndSort(); 
             return;
         }
         
         DOMElements.searchMessage.textContent = `Searching for "${query}"...`;
+        currentRawSearchResults = []; // Reset for new search
 
         try {
-            // Always use search/multi for keyword search initially, then filter client-side
-            const fetchParams = { query: query, page: 1 }; // Maybe fetch more pages later for better client sorting
             const endpoint = 'search/multi';
-
-            console.log(`Keyword Search: endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
-            const data = await ApiService.fetchTMDB(endpoint, fetchParams);
-            console.log("Keyword Search Response Data:", data);
+            let allFetchedResults = [];
+            // Fetch first 2 pages to get more results for client-side processing
+            for (let page = 1; page <= 2; page++) {
+                const fetchParams = { query: query, page: page, include_adult: 'false' };
+                console.log(`Keyword Search: endpoint=${endpoint}, params=`, JSON.stringify(fetchParams));
+                const data = await ApiService.fetchTMDB(endpoint, fetchParams);
+                console.log(`Keyword Search Response Data (Page ${page}):`, data);
+                if (data && data.results) {
+                    allFetchedResults.push(...data.results);
+                }
+                if (!data.results || data.results.length < 20 || page >= data.total_pages) {
+                    break; // Stop if no more results or fetched all pages
+                }
+            }
             
-            // Store raw results, filter out persons, ensure ID is string
-            currentRawSearchResults = (data.results || [])
+            currentRawSearchResults = allFetchedResults
                 .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path) 
                 .map(item => ({ ...item, id: String(item.id)}));
             
-            AppLogic.applyClientSideFiltersAndSort(); // Apply current filters/sort to new raw results
+            // Set default sort to relevance and apply filters/sort
+            DOMElements.sortBySelect.value = 'relevance'; // Ensure this is the case after a new search
+            DOMElements.filterTypeSelect.value = 'all'; // And default type filter
+            AppLogic.applyClientSideFiltersAndSort();
 
         } catch (error) {
             console.error("Search failed:", error.message);
             DOMElements.searchMessage.textContent = `Search failed: ${error.message}. Please try again.`;
             currentRawSearchResults = [];
-            AppLogic.applyClientSideFiltersAndSort(); // Display error state through common path
+            AppLogic.applyClientSideFiltersAndSort();
         }
     },
     applyClientSideFiltersAndSort: () => {
-        let processedResults = [...currentRawSearchResults]; // Start with a copy of raw results
+        let processedResults = [...currentRawSearchResults];
         const typeFilter = DOMElements.filterTypeSelect.value;
         const sortBy = DOMElements.sortBySelect.value;
 
-        // 1. Apply Type Filter (client-side)
+        console.log(`Applying client filters: Type='${typeFilter}', SortBy='${sortBy}' on ${processedResults.length} raw items.`);
+
         if (typeFilter !== 'all') {
             processedResults = processedResults.filter(item => item.media_type === typeFilter);
         }
 
-        // 2. Apply Sorting (client-side)
-        const [sortField, sortOrder] = sortBy.split('.');
-        processedResults.sort((a, b) => {
-            let valA, valB;
-            const mediaTypeA = a.media_type; // For date field determination
-            const mediaTypeB = b.media_type;
+        if (sortBy !== 'relevance') { // "relevance" means keep API order (already stored in currentRawSearchResults)
+            const [sortField, sortOrder] = sortBy.split('.');
+            processedResults.sort((a, b) => {
+                let valA, valB;
+                const mediaTypeA = a.media_type;
+                const mediaTypeB = b.media_type;
 
-            if (sortField === 'release_date') {
-                valA = new Date(mediaTypeA === 'movie' ? a.release_date : a.first_air_date || '1900-01-01').getTime();
-                valB = new Date(mediaTypeB === 'movie' ? b.release_date : b.first_air_date || '1900-01-01').getTime();
-            } else if (sortField === 'vote_average') {
-                valA = parseFloat(a.vote_average || 0);
-                valB = parseFloat(b.vote_average || 0);
-            } else if (sortField === 'popularity') {
-                valA = parseFloat(a.popularity || 0);
-                valB = parseFloat(b.popularity || 0);
-            } else {
-                return 0; 
-            }
+                if (sortField === 'release_date') {
+                    valA = new Date(mediaTypeA === 'movie' ? a.release_date : a.first_air_date || '1900-01-01').getTime();
+                    valB = new Date(mediaTypeB === 'movie' ? b.release_date : b.first_air_date || '1900-01-01').getTime();
+                } else if (sortField === 'vote_average') {
+                    valA = parseFloat(a.vote_average || 0);
+                    valB = parseFloat(b.vote_average || 0);
+                } else if (sortField === 'popularity') {
+                    valA = parseFloat(a.popularity || 0);
+                    valB = parseFloat(b.popularity || 0);
+                } else {
+                    return 0; 
+                }
 
-            if (isNaN(valA)) valA = (sortOrder === 'asc' ? Infinity : -Infinity);
-            if (isNaN(valB)) valB = (sortOrder === 'asc' ? Infinity : -Infinity);
+                if (isNaN(valA)) valA = (sortOrder === 'asc' ? Infinity : -Infinity);
+                if (isNaN(valB)) valB = (sortOrder === 'asc' ? Infinity : -Infinity);
 
-            if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-            if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-            return 0;
-        });
-        
-        // Update message and render grid
-        if (currentRawSearchResults.length > 0 && processedResults.length === 0) {
-             DOMElements.searchMessage.textContent = `No results match your current filters for "${DOMElements.searchInput.value.trim()}".`;
-        } else if (processedResults.length > 0) {
-             DOMElements.searchMessage.textContent = `Showing results for "${DOMElements.searchInput.value.trim()}" (filtered & sorted):`;
-        } else if (DOMElements.searchInput.value.trim()) {
-             DOMElements.searchMessage.textContent = `No results found for "${DOMElements.searchInput.value.trim()}".`;
-        } else {
-            DOMElements.searchMessage.textContent = 'Type to search for movies and TV shows.';
+                if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+                if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
         }
+        
+        const query = DOMElements.searchInput.value.trim();
+        if (processedResults.length > 0) {
+             DOMElements.searchMessage.textContent = query ? `Results for "${query}":` : 'Displaying items:';
+        } else if (query) {
+             DOMElements.searchMessage.textContent = `No results match your filters for "${query}".`;
+        } else if (currentRawSearchResults.length > 0 && processedResults.length === 0) {
+            DOMElements.searchMessage.textContent = `No results match your current filters.`;
+        }
+         else {
+            DOMElements.searchMessage.textContent = 'No results found.';
+        }
+        // If no initial search was made but filters were "applied", currentRawSearchResults would be empty
+        if (!query && currentRawSearchResults.length === 0){
+             DOMElements.searchMessage.textContent = 'Please enter a search term first.';
+        }
+
 
         UIService.renderGrid(DOMElements.searchResultsGrid, processedResults, null);
     },
