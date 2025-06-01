@@ -29,6 +29,10 @@
                 <input type="email" id="login-email" placeholder="Email">
                 <input type="password" id="login-password" placeholder="Password">
                 <button id="login-button">Login</button>
+                <p class="auth-separator"><span>OR</span></p>
+                <button id="google-signin-button" class="google-signin-button">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google G Logo"> Sign in with Google
+                </button>
                 <p class="auth-toggle">Don't have an account? <a href="#" id="show-register">Register here</a></p>
                 <p id="login-error" class="error-message"></p>
             </div>
@@ -37,6 +41,9 @@
                 <input type="email" id="register-email" placeholder="Email">
                 <input type="password" id="register-password" placeholder="Password">
                 <button id="register-button">Register</button>
+                <p class="auth-separator"><span>OR</span></p>
+                <button id="google-signup-button" class="google-signin-button"> <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google G Logo"> Sign up with Google
+                </button>
                 <p class="auth-toggle">Already have an account? <a href="#" id="show-login">Login here</a></p>
                 <p id="register-error" class="error-message"></p>
             </div>
@@ -62,15 +69,32 @@
                 </div>
 
             <div id="search-view" class="view">
-                <div class="search-bar-container">
-                    <input type="text" id="search-input" placeholder="Search for movies or TV shows...">
-                    <button id="search-button-main">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                    </button>
+                <div class="search-controls-container">
+                    <div class="search-bar-wrapper">
+                        <input type="text" id="search-input" placeholder="Search for movies or TV shows...">
+                        <button id="search-button-main">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        </button>
+                    </div>
+                    <div id="autocomplete-suggestions" class="autocomplete-suggestions-list"></div>
+                    <div class="filter-sort-controls">
+                        <select id="filter-type" class="filter-select">
+                            <option value="all">All Types</option>
+                            <option value="movie">Movies</option>
+                            <option value="tv">TV Shows</option>
+                        </select>
+                        <select id="sort-by" class="filter-select">
+                            <option value="popularity.desc">Popularity</option>
+                            <option value="release_date.desc">Release Date (Newest)</option>
+                            <option value="release_date.asc">Release Date (Oldest)</option>
+                            <option value="vote_average.desc">Rating (Highest)</option>
+                            <option value="vote_average.asc">Rating (Lowest)</option>
+                        </select>
+                        <button id="apply-filters-button" class="filter-button">Apply</button>
+                    </div>
                 </div>
-                 <div id="autocomplete-suggestions" class="autocomplete-suggestions-list"></div>
                 <div id="search-results-container">
-                    <p id="search-message" class="search-status-message">Type to search for movies and TV shows.</p>
+                    <p id="search-message" class="search-status-message">Type to search or apply filters to discover.</p>
                     <div id="search-results-grid" class="media-grid">
                         </div>
                 </div>
